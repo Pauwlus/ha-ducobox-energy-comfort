@@ -1,7 +1,7 @@
 {
   "domain": "ducobox",
   "name": "DucoBox",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "documentation": "https://github.com/Pauwlus/ha-ducobox-energy-comfort",
   "issue_tracker": "https://github.com/Pauwlus/ha-ducobox-energy-comfort/issues",
   "integration_type": "hub",
@@ -10,3 +10,4 @@
   "iot_class": "local_polling",
   "config_flow": true
 }
+
