@@ -26,58 +26,68 @@ from .const import (
 
 SCAN_INTERVAL = timedelta(seconds=SCAN_SECONDS)
 
-# -------------------------
-# Sensor descriptions
-# -------------------------
-SENSOR_DESCRIPTIONS: list[dict[str, Any]] = [
-    # --- Hoofdunit: node 1 (trgt/actl/snsr) ---
+SENSOR_DESCRIPTIONS = [
     {"name": "DucoBox trgt", "unique_id": "ducobox_trgt", "unit": PERCENTAGE, "url": DUCOBOX_NODE1, "path": ["trgt"]},
     {"name": "DucoBox actl", "unique_id": "ducobox_actl", "unit": PERCENTAGE, "url": DUCOBOX_NODE1, "path": ["actl"]},
     {"name": "DucoBox snsr", "unique_id": "ducobox_snsr", "unit": PERCENTAGE, "url": DUCOBOX_NODE1, "path": ["snsr"]},
 
-    # --- Hoofdunit: boxinfoget (temperaturen) ---
-    {"name": "DucoBox temp aanzuiging vers", "unique_id": "ducobox_temp_oda", "unit": UnitOfTemperature.CELSIUS, "url": DUCOBOX_BOXINFO, "path": ["EnergyInfo", "TempODA"], "scale": 0.1, "device_class": SensorDeviceClass.TEMPERATURE},
-    {"name": "DucoBox temp aanvoer woning", "unique_id": "ducobox_temp_sup", "unit": UnitOfTemperature.CELSIUS, "url": DUCOBOX_BOXINFO, "path": ["EnergyInfo", "TempSUP"], "scale": 0.1, "device_class": SensorDeviceClass.TEMPERATURE},
-    {"name": "DucoBox temp afzuiging woning", "unique_id": "ducobox_temp_eta", "unit": UnitOfTemperature.CELSIUS, "url": DUCOBOX_BOXINFO, "path": ["EnergyInfo", "TempETA"], "scale": 0.1, "device_class": SensorDeviceClass.TEMPERATURE},
-    {"name": "DucoBox temp afvoer", "unique_id": "ducobox_temp_eha", "unit": UnitOfTemperature.CELSIUS, "url": DUCOBOX_BOXINFO, "path": ["EnergyInfo", "TempEHA"], "scale": 0.1, "device_class": SensorDeviceClass.TEMPERATURE},
+    {"name": "DucoBox temp aanzuiging vers", "unique_id": "ducobox_temp_oda", "unit": TEMP_CELSIUS,
+     "url": DUCOBOX_BOXINFO, "path": ["EnergyInfo", "TempODA"], "scale": 0.1,
+     "device_class": SensorDeviceClass.TEMPERATURE},
+    {"name": "DucoBox temp aanvoer woning", "unique_id": "ducobox_temp_sup", "unit": TEMP_CELSIUS,
+     "url": DUCOBOX_BOXINFO, "path": ["EnergyInfo", "TempSUP"], "scale": 0.1,
+     "device_class": SensorDeviceClass.TEMPERATURE},
+    {"name": "DucoBox temp afzuiging woning", "unique_id": "ducobox_temp_eta", "unit": TEMP_CELSIUS,
+     "url": DUCOBOX_BOXINFO, "path": ["EnergyInfo", "TempETA"], "scale": 0.1,
+     "device_class": SensorDeviceClass.TEMPERATURE},
+    {"name": "DucoBox temp afvoer", "unique_id": "ducobox_temp_eha", "unit": TEMP_CELSIUS,
+     "url": DUCOBOX_BOXINFO, "path": ["EnergyInfo", "TempEHA"], "scale": 0.1,
+     "device_class": SensorDeviceClass.TEMPERATURE},
 
-    # --- Zone 1 ---
-    {"name": "Duco zone 1 beneden trgt", "unique_id": "duco_zone1_trgt", "unit": PERCENTAGE, "url": DUCO_ZONE1, "path": ["trgt"]},
-    {"name": "Duco zone 1 beneden actl", "unique_id": "duco_zone1_actl", "unit": PERCENTAGE, "url": DUCO_ZONE1, "path": ["actl"]},
-    {"name": "Duco zone 1 beneden snsr", "unique_id": "duco_zone1_snsr", "unit": PERCENTAGE, "url": DUCO_ZONE1, "path": ["snsr"]},
+    {"name": "Duco zone 1 beneden trgt", "unique_id": "duco_zone1_trgt", "unit": PERCENTAGE,
+     "url": DUCO_ZONE1, "path": ["trgt"]},
+    {"name": "Duco zone 1 beneden actl", "unique_id": "duco_zone1_actl", "unit": PERCENTAGE,
+     "url": DUCO_ZONE1, "path": ["actl"]},
+    {"name": "Duco zone 1 beneden snsr", "unique_id": "duco_zone1_snsr", "unit": PERCENTAGE,
+     "url": DUCO_ZONE1, "path": ["snsr"]},
 
-    # --- Zone 2 ---
-    {"name": "Duco zone 2 boven trgt", "unique_id": "duco_zone2_trgt", "unit": PERCENTAGE, "url": DUCO_ZONE2, "path": ["trgt"]},
-    {"name": "Duco zone 2 boven actl", "unique_id": "duco_zone2_actl", "unit": PERCENTAGE, "url": DUCO_ZONE2, "path": ["actl"]},
-    {"name": "Duco zone 2 boven snsr", "unique_id": "duco_zone2_snsr", "unit": PERCENTAGE, "url": DUCO_ZONE2, "path": ["snsr"]},
+    {"name": "Duco zone 2 boven trgt", "unique_id": "duco_zone2_trgt", "unit": PERCENTAGE,
+     "url": DUCO_ZONE2, "path": ["trgt"]},
+    {"name": "Duco zone 2 boven actl", "unique_id": "duco_zone2_actl", "unit": PERCENTAGE,
+     "url": DUCO_ZONE2, "path": ["actl"]},
+    {"name": "Duco zone 2 boven snsr", "unique_id": "duco_zone2_snsr", "unit": PERCENTAGE,
+     "url": DUCO_ZONE2, "path": ["snsr"]},
 
-    # --- Node 2 ---
-    {"name": "Duco node 2 Badkamer Temp", "unique_id": "duco_node2_temp", "unit": UnitOfTemperature.CELSIUS, "url": DUCO_NODE2, "path": ["temp"], "device_class": SensorDeviceClass.TEMPERATURE},
-    {"name": "Duco node 2 Badkamer rh", "unique_id": "duco_node2_rh", "unit": PERCENTAGE, "url": DUCO_NODE2, "path": ["rh"], "device_class": SensorDeviceClass.HUMIDITY},
-    {"name": "Duco node 2 Badkamer snsr", "unique_id": "duco_node2_snsr", "unit": PERCENTAGE, "url": DUCO_NODE2, "path": ["snsr"]},
+    {"name": "Duco node 2 Badkamer Temp", "unique_id": "duco_node2_temp", "unit": TEMP_CELSIUS,
+     "url": DUCO_NODE2, "path": ["temp"], "device_class": SensorDeviceClass.TEMPERATURE},
+    {"name": "Duco node 2 Badkamer rh", "unique_id": "duco_node2_rh", "unit": PERCENTAGE,
+     "url": DUCO_NODE2, "path": ["rh"], "device_class": SensorDeviceClass.HUMIDITY},
+    {"name": "Duco node 2 Badkamer snsr", "unique_id": "duco_node2_snsr", "unit": PERCENTAGE,
+     "url": DUCO_NODE2, "path": ["snsr"]},
 
-    # --- Node 3 ---
-    {"name": "Duco node 3 Slaapkamer Temp", "unique_id": "duco_node3_temp", "unit": UnitOfTemperature.CELSIUS, "url": DUCO_NODE3, "path": ["temp"], "device_class": SensorDeviceClass.TEMPERATURE},
-    {"name": "Duco node 3 Slaapkamer co2", "unique_id": "duco_node3_co2", "unit": CONCENTRATION_PARTS_PER_MILLION, "url": DUCO_NODE3, "path": ["co2"], "device_class": SensorDeviceClass.CO2},
-    {"name": "Duco node 3 Slaapkamer snsr", "unique_id": "duco_node3_snsr", "unit": PERCENTAGE, "url": DUCO_NODE3, "path": ["snsr"]},
+    {"name": "Duco node 3 Slaapkamer Temp", "unique_id": "duco_node3_temp", "unit": TEMP_CELSIUS,
+     "url": DUCO_NODE3, "path": ["temp"], "device_class": SensorDeviceClass.TEMPERATURE},
+    {"name": "Duco node 3 Slaapkamer co2", "unique_id": "duco_node3_co2",
+     "unit": CONCENTRATION_PARTS_PER_MILLION, "url": DUCO_NODE3, "path": ["co2"],
+     "device_class": SensorDeviceClass.CO2},
+    {"name": "Duco node 3 Slaapkamer snsr", "unique_id": "duco_node3_snsr", "unit": PERCENTAGE,
+     "url": DUCO_NODE3, "path": ["snsr"]},
 
-    # --- Node 4 ---
-    {"name": "Duco node 4 Woonkamer Temp", "unique_id": "duco_node4_temp", "unit": UnitOfTemperature.CELSIUS, "url": DUCO_NODE4, "path": ["temp"], "device_class": SensorDeviceClass.TEMPERATURE},
-    {"name": "Duco node 4 Woonkamer co2", "unique_id": "duco_node4_co2", "unit": CONCENTRATION_PARTS_PER_MILLION, "url": DUCO_NODE4, "path": ["co2"], "device_class": SensorDeviceClass.CO2},
-    {"name": "Duco node 4 Woonkamer snsr", "unique_id": "duco_node4_snsr", "unit": PERCENTAGE, "url": DUCO_NODE4, "path": ["snsr"]},
+    {"name": "Duco node 4 Woonkamer Temp", "unique_id": "duco_node4_temp", "unit": TEMP_CELSIUS,
+     "url": DUCO_NODE4, "path": ["temp"], "device_class": SensorDeviceClass.TEMPERATURE},
+    {"name": "Duco node 4 Woonkamer co2", "unique_id": "duco_node4_co2",
+     "unit": CONCENTRATION_PARTS_PER_MILLION, "url": DUCO_NODE4, "path": ["co2"],
+     "device_class": SensorDeviceClass.CO2},
+    {"name": "Duco node 4 Woonkamer snsr", "unique_id": "duco_node4_snsr", "unit": PERCENTAGE,
+     "url": DUCO_NODE4, "path": ["snsr"]},
 ]
 
-
-# -------------------------
-# Setup helpers (UI + YAML)
-# -------------------------
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities):
     """Set up sensors from a config entry (UI)."""
     session = async_get_clientsession(hass)
     host = entry.data.get("host")
     verify_ssl = entry.data.get("verify_ssl", False)
-
     if not host:
         return
 
@@ -98,7 +108,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
     async_add_entities(entities, True)
 
 
-# YAML fallback kan blijven, maar is optioneel:
+# (optioneel) legacy YAML-setup
 async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
     session = async_get_clientsession(hass)
     host = config.get("host")
@@ -169,4 +179,3 @@ class DucoBoxSensor(SensorEntity):
             value = raw
 
         self._attr_native_value = value
-
