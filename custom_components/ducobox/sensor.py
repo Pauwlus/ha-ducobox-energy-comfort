@@ -1,24 +1,19 @@
 
 from __future__ import annotations
 
-import logging
 import async_timeout
 from datetime import timedelta
-from typing import Any
-
 from homeassistant.components.sensor import SensorEntity, SensorDeviceClass
 from homeassistant.const import (
+    TEMP_CELSIUS,
     PERCENTAGE,
     CONCENTRATION_PARTS_PER_MILLION,
-    UnitOfTemperature,  # modern replacement for TEMP_CELSIUS
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 from homeassistant.config_entries import ConfigEntry
 
 from .const import (
-    DOMAIN,
     DUCOBOX_NODE1,
     DUCOBOX_BOXINFO,
     DUCO_ZONE1,
@@ -29,9 +24,7 @@ from .const import (
     SCAN_INTERVAL as SCAN_SECONDS,
 )
 
-_LOGGER = logging.getLogger(__name__)
 SCAN_INTERVAL = timedelta(seconds=SCAN_SECONDS)
-
 
 # -------------------------
 # Sensor descriptions
@@ -78,14 +71,14 @@ SENSOR_DESCRIPTIONS: list[dict[str, Any]] = [
 # -------------------------
 # Setup helpers (UI + YAML)
 # -------------------------
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities):
     """Set up sensors from a config entry (UI)."""
     session = async_get_clientsession(hass)
-    host: str = entry.data.get("host")
-    verify_ssl: bool = entry.data.get("verify_ssl", False)
+    host = entry.data.get("host")
+    verify_ssl = entry.data.get("verify_ssl", False)
 
     if not host:
-        _LOGGER.error("No 'host' provided in config entry for %s", DOMAIN)
         return
 
     entities = [
@@ -105,22 +98,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
     async_add_entities(entities, True)
 
 
-# Keep YAML support for devs/users who still prefer it.
-async def async_setup_platform(
-    hass: HomeAssistant,
-    config: ConfigType,
-    async_add_entities,
-    discovery_info: DiscoveryInfoType | None = None,
-):
-    """Legacy YAML setup: sensor: - platform: ducobox host: 192.168.x.x verify_ssl: false"""
+# YAML fallback kan blijven, maar is optioneel:
+async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
     session = async_get_clientsession(hass)
-    host: str | None = config.get("host")
-    verify_ssl: bool = config.get("verify_ssl", False)
-
+    host = config.get("host")
+    verify_ssl = config.get("verify_ssl", False)
     if not host:
-        _LOGGER.error("No 'host' supplied in YAML for %s", DOMAIN)
         return
-
     entities = [
         DucoBoxSensor(
             session=session,
@@ -139,7 +123,7 @@ async def async_setup_platform(
 
 
 def _extract_value(data: dict, path: list[str]):
-    cur: Any = data
+    cur = data
     for key in path:
         if not isinstance(cur, dict):
             return None
@@ -170,16 +154,13 @@ class DucoBoxSensor(SensorEntity):
             async with async_timeout.timeout(10):
                 resp = await self._session.get(self._url, ssl=self._verify_ssl or None)
                 if resp.status != 200:
-                    _LOGGER.warning("HTTP %s while fetching %s", resp.status, self._url)
                     return
                 data = await resp.json(content_type=None)
-        except Exception as err:
-            _LOGGER.debug("Update failed for %s: %s", self._url, err)
+        except Exception:
             return
 
         raw = _extract_value(data, self._path)
         if raw is None:
-            _LOGGER.debug("Path %s not found in payload from %s", self._path, self._url)
             return
 
         try:
@@ -188,3 +169,4 @@ class DucoBoxSensor(SensorEntity):
             value = raw
 
         self._attr_native_value = value
+
