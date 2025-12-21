@@ -13,6 +13,7 @@ from homeassistant.const import (
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.helpers.entity import DeviceInfo  # NIEUW
 
 from .const import (
     DUCOBOX_NODE1,
@@ -91,6 +92,8 @@ SENSOR_DESCRIPTIONS = [
 ]
 
 
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities):
     """Set up sensors from a config entry (UI)."""
     session = async_get_clientsession(hass)
@@ -99,6 +102,20 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
     if not host:
         return
 
+    # 👉 1) Versie best-effort ophalen (één keer tijdens setup)
+    sw_version = await _fetch_sw_version(session, host, verify_ssl)
+
+    # 👉 2) DeviceInfo definiëren (één device voor alle entiteiten)
+    device_info = DeviceInfo(
+        identifiers={("ducobox", host)},         # stabiele identifier voor dit apparaat
+        name="DucoBox",
+        manufacturer="DUCO",
+        model="DucoBox Energy Comfort",
+        sw_version=sw_version,                   # 👈 automatische firmware/software-versie
+        configuration_url=f"http://{host}",      # klikbare link in HA UI
+    )
+
+    # 👉 3) Entities aanmaken en koppelen aan device_info
     entities = [
         DucoBoxSensor(
             session=session,
@@ -110,11 +127,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
             scale=desc.get("scale", 1.0),
             device_class=desc.get("device_class"),
             verify_ssl=verify_ssl,
+            device_info=device_info,             # 👈 koppel aan Device
         )
         for desc in SENSOR_DESCRIPTIONS
     ]
     async_add_entities(entities, True)
-
 
 # (optioneel) legacy YAML-setup
 async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
@@ -150,11 +167,84 @@ def _extract_value(data: dict, path: list[str]):
             return None
     return cur
 
+# Added for supporting device ===================
+sync def _fetch_sw_version(session, host: str, verify_ssl: bool) -> str | None:
+    """Probeer de firmware/software-versie van de DucoBox op te halen.
+
+    We proberen een paar gangbare endpoints/velden en stoppen zodra we iets bruikbaars vinden.
+    Alle calls zijn best-effort; bij fouten geven we None terug (geen crash).
+    """
+    import async_timeout
+
+    # Kandidaten endpoints (relative path) en mogelijke sleutel-paden in de JSON
+    endpoints = [
+        "/info",
+        "/boxinfoget",
+        "/nodeinfoget?node=1",
+    ]
+    # Mogelijke sleutel(paden) die in de praktijk gezien worden
+    version_keys = [
+        ["swversion"],
+        ["sw_version"],
+        ["SWVersion"],
+        ["firmware"],
+        ["fw_version"],
+        ["version"],
+        # En soms diep genest (best-effort)
+        ["HeatRecovery", "General", "swversion"],
+        ["General", "swversion"],
+    ]
+
+    base_http = f"http://{host}"
+    # Als jouw box HTTPS met self-signed gebruikt, kun je hier ook https:// proberen
+    bases = [base_http]
+
+    for base in bases:
+        for ep in endpoints:
+            url = f"{base}{ep}"
+            try:
+                async with async_timeout.timeout(5):
+                    resp = await session.get(url, ssl=verify_ssl or None)
+                    if resp.status != 200:
+                        continue
+                    data = await resp.json(content_type=None)
+            except Exception:
+                continue
+
+            # Probeer verschillende key-paden
+            for path in version_keys:
+                cur = data
+                ok = True
+                for key in path:
+                    if not isinstance(cur, dict) or key not in cur:
+                        ok = False
+                        break
+                    cur = cur[key]
+                if ok and isinstance(cur, (str, int, float)) and str(cur).strip():
+                    return str(cur).strip()
+
+    return None
+# ===============================================
+
+
+
 
 class DucoBoxSensor(SensorEntity):
     _attr_should_poll = True
 
-    def __init__(self, session, name, unique_id, unit, url, path, scale=1.0, device_class=None, verify_ssl=False):
+    def __init__(
+        self,
+        session,
+        name,
+        unique_id,
+        unit,
+        url,
+        path,
+        scale=1.0,
+        device_class=None,
+        verify_ssl=False,
+        device_info: DeviceInfo | None = None,  # 👈 NIEUW
+    ):
         self._session = session
         self._attr_name = name
         self._attr_unique_id = unique_id
@@ -166,24 +256,7 @@ class DucoBoxSensor(SensorEntity):
         self._verify_ssl = verify_ssl
         if device_class:
             self._attr_device_class = device_class
+        if device_info is not None:
+            self._attr_device_info = device_info  # 👈 Koppeling met Apparaat
 
-    async def async_update(self):
-        try:
-            async with async_timeout.timeout(10):
-                resp = await self._session.get(self._url, ssl=self._verify_ssl or None)
-                if resp.status != 200:
-                    return
-                data = await resp.json(content_type=None)
-        except Exception:
-            return
 
-        raw = _extract_value(data, self._path)
-        if raw is None:
-            return
-
-        try:
-            value = float(raw) * self._scale
-        except Exception:
-            value = raw
-
-        self._attr_native_value = value
