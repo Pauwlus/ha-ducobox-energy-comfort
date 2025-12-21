@@ -2,8 +2,9 @@
   "domain": "ducobox",
   "name": "DucoBox",
   "version": "1.0.0",
-  "documentation": "https://github.com/<jouw-repo>/ducobox",
+  "documentation": "https://github.com/Pauwlus/ha-ducobox-energy-comfort",
+  "integration_type": "hub",
   "requirements": [],
-  "codeowners": ["@paul"],
+  "codeowners": ["@pauwlus"],
   "iot_class": "local_polling"
 }
