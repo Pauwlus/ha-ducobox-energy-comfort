@@ -63,12 +63,9 @@ class DucoboxConfigFlow(ConfigFlow, domain=DOMAIN):
     def async_get_options_flow(config_entry: ConfigEntry):
         return DucoboxOptionsFlowHandler(config_entry)
 
-
-
 class DucoboxOptionsFlowHandler(config_entries.OptionsFlow):
     def __init__(self, config_entry: ConfigEntry) -> None:
-        # Roep de superconstructor aan; HA zet self.config_entry voor je klaar.
-        super().__init__(config_entry)
+        self.config_entry = config_entry
     
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         errors: dict[str, str] = {}
