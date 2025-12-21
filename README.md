@@ -1,2 +1,31 @@
-# ha-ducobox-energy-comfort
+# Home Assistant -DucoBox Energy Comfort integration
 Home Assistant integration for Ducobox Energy comfort WTW
+
+Deze custom integratie voegt volledige ondersteuning toe voor de DucoBox ventilatie-unit.
+
+## Functies
+
+- 20+ sensoren (hoofdunit, zones, nodes)
+- Native Home Assistant service:
+  - `ducobox.set_mode`
+- Lokale polling via REST
+- Icon placeholders
+
+## Installatie
+
+Optie 1: Handmatig toevoegen als custom component
+
+1. Kopieer de map `custom_components/ducobox/` naar je Home Assistant config directory.
+2. Herstart Home Assistant.
+3. Ga naar Instellingen → Integraties → Voeg integratie toe → DucoBox.
+
+Optie 2: Toevoegen via HACS
+
+Installeer HACS (als je dat nog niet hebt).
+Voeg jouw GitHub-repository toe als een custom repository:
+
+Ga naar HACS → Integraties → Drie puntjes → Custom repositories.
+Vul de URL van jouw repo in en kies type Integration.
+
+
+Installeer de integratie via HACS en herstart Home Assistant.
