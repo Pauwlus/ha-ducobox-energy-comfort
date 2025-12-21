@@ -1,0 +1,9 @@
+set_mode:
+  description: "Stel de DucoBox of zones in op AUTO/MAN1/MAN2/MAN3"
+  fields:
+    mode:
+      description: "auto, man1, man2, man3"
+      example: "auto"
+    zone:
+      description: "main, zone1, zone2"
+      example: "main"
