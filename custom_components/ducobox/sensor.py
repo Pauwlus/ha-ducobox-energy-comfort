@@ -49,11 +49,11 @@ SENSOR_DESCRIPTIONS = [
      "device_class": SensorDeviceClass.TEMPERATURE},
 
     # --- Zone 1 ---
-    {"name": "Duco zone 1 beneden trgt", "unique_id": "duco_zone1_trgt", "unit": PERCENTAGE,
+    {"name": "Duco zone 1 beneden target", "unique_id": "duco_zone1_trgt", "unit": PERCENTAGE,
      "url": DUCO_ZONE1, "path": ["trgt"]},
-    {"name": "Duco zone 1 beneden actl", "unique_id": "duco_zone1_actl", "unit": PERCENTAGE,
+    {"name": "Duco zone 1 beneden actueel", "unique_id": "duco_zone1_actl", "unit": PERCENTAGE,
      "url": DUCO_ZONE1, "path": ["actl"]},
-    {"name": "Duco zone 1 beneden snsr", "unique_id": "duco_zone1_snsr", "unit": PERCENTAGE,
+    {"name": "Duco zone 1 beneden sensor", "unique_id": "duco_zone1_snsr", "unit": PERCENTAGE,
      "url": DUCO_ZONE1, "path": ["snsr"]},
 
     # --- Zone 2 ---
@@ -92,7 +92,58 @@ SENSOR_DESCRIPTIONS = [
 ]
 
 
+# Added for supporting device ===================
 
+# Bovenaan heb je al: from __future__ import annotations en import async_timeout
+# Laat die staan; die zijn OK.
+async def _fetch_sw_version(session, host: str, verify_ssl: bool) -> str | None:
+    """Probeer de firmware/software-versie van de DucoBox op te halen (best-effort)."""
+    # Kandidaten endpoints en mogelijke sleutel-paden in de JSON
+    endpoints = [
+        "/info",
+        "/boxinfoget",
+        "/nodeinfoget?node=1",
+    ]
+    version_keys = [
+        ["swversion"],
+        ["sw_version"],
+        ["SWVersion"],
+        ["firmware"],
+        ["fw_version"],
+        ["version"],
+        ["HeatRecovery", "General", "swversion"],
+        ["General", "swversion"],
+    ]
+
+    base_http = "http://{host}"
+    bases = [base_http]  # voeg desgewenst https toe als jouw box dat vereist
+
+    for base in bases:
+        for ep in endpoints:
+            url = f"{base}{ep}"
+            try:
+                async with async_timeout.timeout(5):
+                    resp = await session.get(url, ssl=verify_ssl or None)
+                    if resp.status != 200:
+                        continue
+                    data = await resp.json(content_type=None)
+            except Exception:
+                continue
+
+            # Zoek verschillende key-paden
+            for path in version_keys:
+                cur = data
+                ok = True
+                for key in path:
+                    if not isinstance(cur, dict) or key not in cur:
+                        ok = False
+                        break
+                    cur = cur[key]
+                if ok and isinstance(cur, (str, int, float)) and str(cur).strip():
+                    return str(cur).strip()
+
+    return None
+# ===============================================
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities):
     """Set up sensors from a config entry (UI)."""
@@ -167,68 +218,6 @@ def _extract_value(data: dict, path: list[str]):
             return None
     return cur
 
-# Added for supporting device ===================
-sync def _fetch_sw_version(session, host: str, verify_ssl: bool) -> str | None:
-    """Probeer de firmware/software-versie van de DucoBox op te halen.
-
-    We proberen een paar gangbare endpoints/velden en stoppen zodra we iets bruikbaars vinden.
-    Alle calls zijn best-effort; bij fouten geven we None terug (geen crash).
-    """
-    import async_timeout
-
-    # Kandidaten endpoints (relative path) en mogelijke sleutel-paden in de JSON
-    endpoints = [
-        "/info",
-        "/boxinfoget",
-        "/nodeinfoget?node=1",
-    ]
-    # Mogelijke sleutel(paden) die in de praktijk gezien worden
-    version_keys = [
-        ["swversion"],
-        ["sw_version"],
-        ["SWVersion"],
-        ["firmware"],
-        ["fw_version"],
-        ["version"],
-        # En soms diep genest (best-effort)
-        ["HeatRecovery", "General", "swversion"],
-        ["General", "swversion"],
-    ]
-
-    base_http = f"http://{host}"
-    # Als jouw box HTTPS met self-signed gebruikt, kun je hier ook https:// proberen
-    bases = [base_http]
-
-    for base in bases:
-        for ep in endpoints:
-            url = f"{base}{ep}"
-            try:
-                async with async_timeout.timeout(5):
-                    resp = await session.get(url, ssl=verify_ssl or None)
-                    if resp.status != 200:
-                        continue
-                    data = await resp.json(content_type=None)
-            except Exception:
-                continue
-
-            # Probeer verschillende key-paden
-            for path in version_keys:
-                cur = data
-                ok = True
-                for key in path:
-                    if not isinstance(cur, dict) or key not in cur:
-                        ok = False
-                        break
-                    cur = cur[key]
-                if ok and isinstance(cur, (str, int, float)) and str(cur).strip():
-                    return str(cur).strip()
-
-    return None
-# ===============================================
-
-
-
-
 class DucoBoxSensor(SensorEntity):
     _attr_should_poll = True
 
@@ -258,5 +247,6 @@ class DucoBoxSensor(SensorEntity):
             self._attr_device_class = device_class
         if device_info is not None:
             self._attr_device_info = device_info  # 👈 Koppeling met Apparaat
+
 
 
