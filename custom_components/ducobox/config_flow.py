@@ -64,12 +64,12 @@ class DucoboxConfigFlow(ConfigFlow, domain=DOMAIN):
         return DucoboxOptionsFlowHandler(config_entry)
 
 
+
 class DucoboxOptionsFlowHandler(config_entries.OptionsFlow):
-    """Opties-flow om scan_interval / verify_ssl aan te passen."""
-
     def __init__(self, config_entry: ConfigEntry) -> None:
-        self.config_entry = config_entry
-
+        # Roep de superconstructor aan; HA zet self.config_entry voor je klaar.
+        super().__init__(config_entry)
+    
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         errors: dict[str, str] = {}
 
