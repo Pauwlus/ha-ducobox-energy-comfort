@@ -1,5 +1,5 @@
 {
-  "name": "DucoBox Integration",
+  "name": "DucoBox Energy comfort",
   "domains": ["sensor"],
   "country": "NL",
   "homeassistant": "2024.1.0"
