@@ -115,7 +115,7 @@ async def _fetch_sw_version(session, host: str, verify_ssl: bool) -> str | None:
         ["General", "swversion"],
     ]
 
-    base_http = "http://{host}"
+    base_http = f"http://{host}"
     bases = [base_http]  # voeg desgewenst https toe als jouw box dat vereist
 
     for base in bases:
@@ -247,6 +247,7 @@ class DucoBoxSensor(SensorEntity):
             self._attr_device_class = device_class
         if device_info is not None:
             self._attr_device_info = device_info  # 👈 Koppeling met Apparaat
+
 
 
 
