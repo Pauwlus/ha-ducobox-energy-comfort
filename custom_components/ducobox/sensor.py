@@ -157,6 +157,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         DucoBoxSensor(
             session=session,
             name=desc["name"],
+            object_id=desc["unique_id"],
             unique_id=desc["unique_id"],
             unit=desc.get("unit"),
             url=desc["url"].format(host=host),
@@ -331,4 +332,5 @@ class DucoBoxSensor(SensorEntity):
             value = raw
 
         self._attr_native_value = value
+
 
