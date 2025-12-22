@@ -281,6 +281,7 @@ class DucoBoxSensor(SensorEntity):
         """
         self._session = session
         self._attr_name = name
+        self._attr_suggested_object_id = unique_id ##PDB added 22/12
         self._attr_unique_id = unique_id
         self._attr_native_unit_of_measurement = unit
         self._url = url
@@ -330,3 +331,4 @@ class DucoBoxSensor(SensorEntity):
             value = raw
 
         self._attr_native_value = value
+
