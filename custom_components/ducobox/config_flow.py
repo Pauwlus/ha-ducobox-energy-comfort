@@ -2,20 +2,16 @@
 """
 Config flow voor DucoBox Energy Comfort integratie.
 
-Doel:
 - UI-configuratie van host/IP en (optioneel) verify_ssl.
-- Opties-flow voor aanpasbaar scan_interval.
+- Opties-flow voor aanpasbaar scan_interval (opgeslagen in entry.options).
 
-Belangrijk:
-- Voor UI-setup wordt een ConfigEntry aangemaakt met data:
-  { host: str, verify_ssl: bool }
-- Opties-flow schrijft scan_interval in entry.options.
+Data in ConfigEntry:
+- data: { host: str, verify_ssl: bool }
+- options: { scan_interval: int }
 """
-
 from __future__ import annotations
 
 from typing import Any
-
 import voluptuous as vol
 
 from homeassistant import config_entries
@@ -31,13 +27,10 @@ CONF_SCAN_INTERVAL = "scan_interval"
 
 
 class DucoboxConfigFlow(ConfigFlow, domain=DOMAIN):
-    """
-    ConfigFlow voor DucoBox.
+    """ConfigFlow voor DucoBox.
 
-    Doel:
-    - Behandelt de eerste stap waarin de gebruiker host/IP en verify_ssl instelt.
-    Return:
-    - Maakt een ConfigEntry aan met data en options.
+    Behandelt de eerste stap waarin de gebruiker host/IP en verify_ssl instelt.
+    Maakt een ConfigEntry aan met data en default options.
     """
 
     VERSION = 1
@@ -45,20 +38,12 @@ class DucoboxConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        """
-        UI-stap: host + verify_ssl.
-
-        Parameters:
-        - user_input: dict met 'host' (str) en optioneel 'verify_ssl' (bool)
-
-        Return:
-        - FlowResult: toont formulier of creëert entry
-        """
+        """UI-stap: host + verify_ssl."""
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            host = user_input.get(CONF_HOST)
-            verify_ssl = user_input.get(CONF_VERIFY_SSL, False)
+            host: str | None = user_input.get(CONF_HOST)
+            verify_ssl: bool = bool(user_input.get(CONF_VERIFY_SSL, False))
 
             if not host:
                 errors[CONF_HOST] = "required"
@@ -82,77 +67,36 @@ class DucoboxConfigFlow(ConfigFlow, domain=DOMAIN):
         return self.async_show_form(step_id="user", data_schema=data_schema, errors=errors)
 
     async def async_step_import(self, user_input: dict[str, Any]) -> FlowResult:
-        """
-        YAML-import (optioneel).
-
-        Parameters:
-        - user_input: dict met host/verify_ssl uit YAML
-
-        Return:
-        - FlowResult (routeert naar user-step)
-        """
+        """YAML-import (optioneel): routeert naar user-step."""
         return await self.async_step_user(user_input)
 
-    @staticmethod
-    def async_get_options_flow(config_entry: ConfigEntry):
-        """
-        Geeft de OptionsFlow-handler terug.
 
-        Parameters:
-        - config_entry: bestaande entry voor deze integratie
-
-        Return:
-        - DucoboxOptionsFlowHandler instance
-        """
-        return DucoboxOptionsFlowHandler(config_entry)
+def async_get_options_flow(config_entry: ConfigEntry):
+    """Geeft de OptionsFlow-handler terug."""
+    return DucoboxOptionsFlowHandler(config_entry)
 
 
 class DucoboxOptionsFlowHandler(config_entries.OptionsFlow):
-    """
-    Opties-flow voor DucoBox.
+    """Opties-flow voor DucoBox.
 
-    Doel:
-    - Laat gebruiker 'scan_interval' aanpassen.
-    - verify_ssl blijft onderdeel van entry.data; hier tonen we desgewenst de
-      huidige waarde voor informatieve doeleinden (niet wijzigen).
-
-    Gebruik:
-    - HA beheert self.config_entry; roep super().__init__(config_entry) aan.
+    Laat gebruiker 'scan_interval' aanpassen. 'verify_ssl' blijft onderdeel
+    van entry.data (wordt hier niet gewijzigd om consistent te blijven).
     """
 
     def __init__(self, config_entry: ConfigEntry) -> None:
-        """
-        Constructor.
-
-        Parameters:
-        - config_entry: bestaande config entry
-
-        Return:
-        - None
-        """
-        # Belangrijk: super aanroepen; HA zet zelf self.config_entry.
-        super().__init__(config_entry)
+        # In OptionsFlow zelf de entry bewaren; geen super().__init__ aanroepen.
+        self.config_entry = config_entry
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        """
-        Opties hoofd-stap.
-
-        Parameters:
-        - user_input: dict met 'scan_interval' (int), optioneel 'verify_ssl' (bool, niet opgeslagen)
-
-        Return:
-        - FlowResult: maakt options entry of toont formulier
-        """
+        """Opties hoofd-stap."""
         errors: dict[str, str] = {}
 
         if user_input is not None:
             # Valideer scan_interval
             try:
-                scan_interval = int(
-                    user_input.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
-                )
+                scan_interval = int(user_input.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL))
                 if scan_interval <= 0:
                     raise ValueError
             except Exception:
@@ -165,12 +109,22 @@ class DucoboxOptionsFlowHandler(config_entries.OptionsFlow):
 
         # Defaults ophalen
         current_scan = self.config_entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
+        # current_ssl is alleen informatief; niet wijzigbaar via options
         current_ssl = self.config_entry.data.get(CONF_VERIFY_SSL, False)
 
         data_schema = vol.Schema(
             {
                 vol.Required(CONF_SCAN_INTERVAL, default=current_scan): int,
-                vol.Optional(CONF_VERIFY_SSL, default=current_ssl): bool,  # informatief
+                # Als je verify_ssl via options wilt kunnen aanpassen, voeg het
+                # hier toe en schrijf het dan expliciet naar options.
+                # We tonen het hier niet in het formulier om verwarring te voorkomen.
             }
         )
-        return self.async_show_form(step_id="init", data_schema=data_schema, errors=errors)
+
+        # Je kunt description_placeholders gebruiken om de huidige SSL-stand te tonen
+        return self.async_show_form(
+            step_id="init",
+            data_schema=data_schema,
+            errors=errors,
+            description_placeholders={"verify_ssl": str(current_ssl)},
+        )
