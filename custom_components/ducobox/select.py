@@ -1,29 +1,60 @@
 
 from __future__ import annotations
 import logging
+import re
 
 from homeassistant.components.select import SelectEntity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
-from .const import DOMAIN, DUCO_OPERATION_MODES
+from .const import DOMAIN, DUCO_OPERATION_MODES, CONF_CREATE_NODE_CONTROLS
 
 _LOGGER = logging.getLogger(__name__)
+
+def slugify_location(loc: str) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "_", (loc or "").lower())
+    return f"ducobox_{slug.strip('_')}" if slug else "ducobox_node"
+
+ALLOWED_NODE_DEVTYPES = {"VLV"}
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities):
     data = hass.data[DOMAIN][entry.entry_id]
     coordinator = data["coordinator"]
 
+    # Respect option toggle
+    create_nodes = entry.options.get(CONF_CREATE_NODE_CONTROLS, False)
+    if not create_nodes:
+        _LOGGER.info("DucoBox: Node controls disabled via options.")
+        async_add_entities([])
+        return
+
     entities = []
     for node in coordinator.nodes:
-        devtype = node.get('devtype', 'unknown')
-        subtype = int(node.get('subtype', 0))
-        node_id = int(node.get('node', 0))
-        serialnb = node.get('serialnb', 'n-a')
-        location = node.get('location', f"Node {node_id}")
-        unique_id = coordinator.api.build_entity_unique_id(coordinator.base_device_id or "ducobox-unknown", devtype, subtype, node_id, serialnb, "operation_mode")
-        entities.append(DucoOperationModeSelect(coordinator, location, unique_id, node_id))
+        devtype = (node.get("devtype") or "").upper()
+        if devtype not in ALLOWED_NODE_DEVTYPES:
+            continue
+        if node.get("mode") is None:
+            continue
+
+        subtype = int(node.get("subtype", 0))
+        node_id = int(node.get("node", 0))
+        serialnb = node.get("serialnb", "n-a")
+        location = node.get("location", f"Node {node_id}")
+        loc_slug = slugify_location(location)
+
+        unique_id = coordinator.api.build_entity_unique_id(
+            coordinator.base_device_id or "ducobox-unknown",
+            devtype,
+            subtype,
+            node_id,
+            serialnb,
+            "operation_mode",
+        )
+        ent = DucoOperationModeSelect(coordinator, location, unique_id, node_id)
+        ent._attr_suggested_object_id = f"{loc_slug}_operation_mode"
+        ent._attr_has_entity_name = True
+        entities.append(ent)
 
     async_add_entities(entities)
 
@@ -48,8 +79,8 @@ class DucoOperationModeSelect(CoordinatorEntity, SelectEntity):
     @property
     def current_option(self) -> str | None:
         for node in self.coordinator.nodes:
-            if node.get('node') == self._node_id:
-                return node.get('mode')
+            if node.get("node") == self._node_id:
+                return node.get("mode")
         return None
 
     async def async_select_option(self, option: str) -> None:
