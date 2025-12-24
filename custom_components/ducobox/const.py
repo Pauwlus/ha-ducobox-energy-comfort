@@ -1,14 +1,14 @@
-# const.py
+
+from __future__ import annotations
+
 DOMAIN = "ducobox"
+DEFAULT_SCAN_INTERVAL = 30
+CONF_HOST = "host"
+CONF_FRIENDLY_NAME = "friendly_name"
+CONF_SCAN_INTERVAL = "scan_interval"
 
-# standaard scan-interval (seconden)
-SCAN_INTERVAL = 45
+DUCO_OPERATION_MODES = ["AUTO", "MAN1", "MAN2", "MAN3"]
 
-# REST endpoints (host via config entry)
-DUCOBOX_NODE1   = "http://{host}/nodeinfoget?node=1"
-DUCOBOX_BOXINFO = "http://{host}/boxinfoget"
-DUCO_ZONE1      = "http://{host}/nodeinfoget?node=67"
-DUCO_ZONE2      = "http://{host}/nodeinfoget?node=68"
-DUCO_NODE2      = "http://{host}/nodeinfoget?node=2"
-DUCO_NODE3      = "http://{host}/nodeinfoget?node=3"
-DUCO_NODE4      = "http://{host}/nodeinfoget?node=4"
+BOX_INFO_ENDPOINT = "/boxinfoget"
+NODE_INFO_ENDPOINT = "/nodeinfoget?node={node}"
+SET_NODE_MODE_ENDPOINT = "/nodesetoperstate?node={node}&value={mode}"

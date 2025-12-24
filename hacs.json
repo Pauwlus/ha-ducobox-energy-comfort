@@ -1,6 +1,7 @@
 {
-  "name": "DucoBox Energy comfort",
-  "domains": ["sensor"],
+  "name": "DucoBox",
   "country": "NL",
-  "homeassistant": "2024.1.0"
+  "homeassistant": "2024.8.0",
+  "render_readme": true,
+  "persistent_directory": "custom_components/ducobox/.storage"
 }

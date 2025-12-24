@@ -1,0 +1,30 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "DucoBox instellen",
+        "description": "Voer host, vriendelijke naam en scaninterval in.",
+        "data": {
+          "host": "Hostnaam of IP",
+          "friendly_name": "Vriendelijke apparaatnaam",
+          "scan_interval": "Scaninterval (seconden)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Cannot connect to DucoBox"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "data": {
+          "host": "Hostname or IP",
+          "friendly_name": "Friendly device name",
+          "scan_interval": "Scan interval (seconds)"
+        }
+      }
+    }
+  },
+  "error": {}
+}

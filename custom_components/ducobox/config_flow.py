@@ -1,130 +1,65 @@
 
-"""
-Config flow voor DucoBox Energy Comfort integratie.
-
-- UI-configuratie van host/IP en (optioneel) verify_ssl.
-- Opties-flow voor aanpasbaar scan_interval (opgeslagen in entry.options).
-
-Data in ConfigEntry:
-- data: { host: str, verify_ssl: bool }
-- options: { scan_interval: int }
-"""
 from __future__ import annotations
+import logging
+from typing import Any, Dict, Optional
 
-from typing import Any
 import voluptuous as vol
-
 from homeassistant import config_entries
-from homeassistant.config_entries import ConfigFlow, ConfigEntry
 from homeassistant.data_entry_flow import FlowResult
 
-from .const import DOMAIN, SCAN_INTERVAL as DEFAULT_SCAN_INTERVAL
+from .const import DOMAIN, CONF_HOST, CONF_FRIENDLY_NAME, CONF_SCAN_INTERVAL
+from .api import DucoBoxApi
 
-# Sleutels gebruikt in config entry data / options
-CONF_HOST = "host"
-CONF_VERIFY_SSL = "verify_ssl"
-CONF_SCAN_INTERVAL = "scan_interval"
+_LOGGER = logging.getLogger(__name__)
 
+STEP_USER_DATA_SCHEMA = vol.Schema({
+    vol.Required(CONF_HOST): str,
+    vol.Required(CONF_FRIENDLY_NAME): str,
+    vol.Required(CONF_SCAN_INTERVAL, default=30): int,
+})
 
-class DucoboxConfigFlow(ConfigFlow, domain=DOMAIN):
-    """ConfigFlow voor DucoBox.
-
-    Behandelt de eerste stap waarin de gebruiker host/IP en verify_ssl instelt.
-    Maakt een ConfigEntry aan met data en default options.
-    """
-
+class DucoBoxConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
+    MINOR_VERSION = 1
 
-    async def async_step_user(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
-        """UI-stap: host + verify_ssl."""
-        errors: dict[str, str] = {}
-
+    async def async_step_user(self, user_input: Optional[Dict[str, Any]] = None) -> FlowResult:
+        errors: Dict[str, str] = {}
         if user_input is not None:
-            host: str | None = user_input.get(CONF_HOST)
-            verify_ssl: bool = bool(user_input.get(CONF_VERIFY_SSL, False))
-
-            if not host:
-                errors[CONF_HOST] = "required"
+            session = self.hass.helpers.aiohttp_client.async_get_clientsession()
+            api = DucoBoxApi(user_input[CONF_HOST], session)
+            try:
+                await api.get_box_info()
+            except Exception as err:
+                _LOGGER.warning("Connection failed: %s", err)
+                errors["base"] = "cannot_connect"
             else:
-                # Unieke ID op basis van host, voorkomt dubbele entries
-                await self.async_set_unique_id(host)
+                unique_id = f"{DOMAIN}-{user_input[CONF_HOST].lower()}"
+                await self.async_set_unique_id(unique_id)
                 self._abort_if_unique_id_configured()
+                return self.async_create_entry(title=user_input[CONF_FRIENDLY_NAME], data=user_input)
+        return self.async_show_form(step_id="user", data_schema=STEP_USER_DATA_SCHEMA, errors=errors)
 
-                return self.async_create_entry(
-                    title=f"DucoBox @{host}",
-                    data={CONF_HOST: host, CONF_VERIFY_SSL: verify_ssl},
-                    options={CONF_SCAN_INTERVAL: DEFAULT_SCAN_INTERVAL},
-                )
-
-        data_schema = vol.Schema(
-            {
-                vol.Required(CONF_HOST): str,
-                vol.Optional(CONF_VERIFY_SSL, default=False): bool,
-            }
-        )
-        return self.async_show_form(step_id="user", data_schema=data_schema, errors=errors)
-
-    async def async_step_import(self, user_input: dict[str, Any]) -> FlowResult:
-        """YAML-import (optioneel): routeert naar user-step."""
+    async def async_step_import(self, user_input: Dict[str, Any]) -> FlowResult:
         return await self.async_step_user(user_input)
 
+    async def async_get_options_flow(self, config_entry):
+        return DucoBoxOptionsFlowHandler(config_entry)
 
-def async_get_options_flow(config_entry: ConfigEntry):
-    """Geeft de OptionsFlow-handler terug."""
-    return DucoboxOptionsFlowHandler(config_entry)
+class DucoBoxOptionsFlowHandler(config_entries.OptionsFlow):
+    def __init__(self, entry: config_entries.ConfigEntry) -> None:
+        self.entry = entry
 
-
-class DucoboxOptionsFlowHandler(config_entries.OptionsFlow):
-    """Opties-flow voor DucoBox.
-
-    Laat gebruiker 'scan_interval' aanpassen. 'verify_ssl' blijft onderdeel
-    van entry.data (wordt hier niet gewijzigd om consistent te blijven).
-    """
-
-    def __init__(self, config_entry: ConfigEntry) -> None:
-        # In OptionsFlow zelf de entry bewaren; geen super().__init__ aanroepen.
-        self.config_entry = config_entry
-
-    async def async_step_init(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
-        """Opties hoofd-stap."""
-        errors: dict[str, str] = {}
-
+    async def async_step_init(self, user_input: Optional[Dict[str, Any]] = None) -> FlowResult:
         if user_input is not None:
-            # Valideer scan_interval
-            try:
-                scan_interval = int(user_input.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL))
-                if scan_interval <= 0:
-                    raise ValueError
-            except Exception:
-                errors[CONF_SCAN_INTERVAL] = "invalid_scan_interval"
-            else:
-                # Schrijf alleen options; data (verify_ssl, host) blijft in entry.data.
-                options = dict(self.config_entry.options)
-                options[CONF_SCAN_INTERVAL] = scan_interval
-                return self.async_create_entry(title="DucoBox opties", data=options)
-
-        # Defaults ophalen
-        current_scan = self.config_entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
-        # current_ssl is alleen informatief; niet wijzigbaar via options
-        current_ssl = self.config_entry.data.get(CONF_VERIFY_SSL, False)
-
-        data_schema = vol.Schema(
-            {
-                vol.Required(CONF_SCAN_INTERVAL, default=current_scan): int,
-                # Als je verify_ssl via options wilt kunnen aanpassen, voeg het
-                # hier toe en schrijf het dan expliciet naar options.
-                # We tonen het hier niet in het formulier om verwarring te voorkomen.
-            }
-        )
-
-        # Je kunt description_placeholders gebruiken om de huidige SSL-stand te tonen
-        return self.async_show_form(
-            step_id="init",
-            data_schema=data_schema,
-            errors=errors,
-            description_placeholders={"verify_ssl": str(current_ssl)},
-        )
+            new_data = dict(self.entry.data)
+            new_data[CONF_HOST] = user_input[CONF_HOST]
+            new_data[CONF_SCAN_INTERVAL] = user_input[CONF_SCAN_INTERVAL]
+            self.hass.config_entries.async_update_entry(self.entry, data=new_data, title=user_input[CONF_FRIENDLY_NAME])
+            await self.hass.config_entries.async_reload(self.entry.entry_id)
+            return self.async_create_entry(title="Options", data={})
+        schema = vol.Schema({
+            vol.Required(CONF_HOST, default=self.entry.data.get(CONF_HOST)): str,
+            vol.Required(CONF_FRIENDLY_NAME, default=self.entry.title): str,
+            vol.Required(CONF_SCAN_INTERVAL, default=self.entry.data.get(CONF_SCAN_INTERVAL, 30)): int,
+        })
+        return self.async_show_form(step_id="init", data_schema=schema)

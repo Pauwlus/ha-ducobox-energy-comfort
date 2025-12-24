@@ -1,337 +1,150 @@
 
-"""
-Sensor platform voor DucoBox Energy Comfort.
-
-Doel:
-- Maakt sensor-entiteiten aan voor DucoBox (targets, actuele waardes, temperatuur, CO2, RH, zones).
-- Koppelt alle entiteiten aan één Device ("DucoBox") in de Device Registry, zodat
-  je in HA een apparaat ziet met bijbehorende sensoren.
-"""
-
 from __future__ import annotations
-
-import async_timeout
-from datetime import timedelta
+import logging
 from typing import Any
 
-from homeassistant.components.sensor import SensorEntity, SensorDeviceClass
-from homeassistant.const import (
-    UnitOfTemperature,
-    PERCENTAGE,
-    CONCENTRATION_PARTS_PER_MILLION,
-)
-from homeassistant.core import HomeAssistant
-from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from homeassistant.helpers.entity import DeviceInfo
+from homeassistant.components.sensor import SensorEntity
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant
 
-from .const import (
-    DUCOBOX_NODE1,
-    DUCOBOX_BOXINFO,
-    DUCO_ZONE1,
-    DUCO_ZONE2,
-    DUCO_NODE2,
-    DUCO_NODE3,
-    DUCO_NODE4,
-    SCAN_INTERVAL as SCAN_SECONDS,
-)
+from .const import DOMAIN
 
-# Polling-interval voor entiteiten (seconden -> timedelta)
-SCAN_INTERVAL = timedelta(seconds=SCAN_SECONDS)
+_LOGGER = logging.getLogger(__name__)
 
-
-# Beschrijvingen voor alle sensoren: naam, id, unit, bron-URL en pad in JSON.
-# Deze informatie wordt gebruikt om entiteiten te genereren in setup.
-SENSOR_DESCRIPTIONS: list[dict[str, Any]] = [
-    # --- Hoofdunit: node 1 (trgt/actl/snsr) ---
-    {"name": "DucoBox trgt", "unique_id": "ducobox_trgt", "unit": PERCENTAGE, "url": DUCOBOX_NODE1, "path": ["trgt"]},
-    {"name": "DucoBox actl", "unique_id": "ducobox_actl", "unit": PERCENTAGE, "url": DUCOBOX_NODE1, "path": ["actl"]},
-    {"name": "DucoBox snsr", "unique_id": "ducobox_snsr", "unit": PERCENTAGE, "url": DUCOBOX_NODE1, "path": ["snsr"]},
-
-    # --- Hoofdunit: boxinfoget (temperaturen) ---
-    {"name": "DucoBox temp aanzuiging vers", "unique_id": "ducobox_temp_oda", "unit": UnitOfTemperature.CELSIUS,
-     "url": DUCOBOX_BOXINFO, "path": ["EnergyInfo", "TempODA"], "scale": 0.1,
-     "device_class": SensorDeviceClass.TEMPERATURE},
-    {"name": "DucoBox temp aanvoer woning", "unique_id": "ducobox_temp_sup", "unit": UnitOfTemperature.CELSIUS,
-     "url": DUCOBOX_BOXINFO, "path": ["EnergyInfo", "TempSUP"], "scale": 0.1,
-     "device_class": SensorDeviceClass.TEMPERATURE},
-    {"name": "DucoBox temp afzuiging woning", "unique_id": "ducobox_temp_eta", "unit": UnitOfTemperature.CELSIUS,
-     "url": DUCOBOX_BOXINFO, "path": ["EnergyInfo", "TempETA"], "scale": 0.1,
-     "device_class": SensorDeviceClass.TEMPERATURE},
-    {"name": "DucoBox temp afvoer", "unique_id": "ducobox_temp_eha", "unit": UnitOfTemperature.CELSIUS,
-     "url": DUCOBOX_BOXINFO, "path": ["EnergyInfo", "TempEHA"], "scale": 0.1,
-     "device_class": SensorDeviceClass.TEMPERATURE},
-
-    # --- Zone 1 ---
-    {"name": "Duco zone 1 beneden trgt", "unique_id": "duco_zone1_trgt", "unit": PERCENTAGE,
-     "url": DUCO_ZONE1, "path": ["trgt"]},
-    {"name": "Duco zone 1 beneden actl", "unique_id": "duco_zone1_actl", "unit": PERCENTAGE,
-     "url": DUCO_ZONE1, "path": ["actl"]},
-    {"name": "Duco zone 1 beneden snsr", "unique_id": "duco_zone1_snsr", "unit": PERCENTAGE,
-     "url": DUCO_ZONE1, "path": ["snsr"]},
-
-    # --- Zone 2 ---
-    {"name": "Duco zone 2 boven trgt", "unique_id": "duco_zone2_trgt", "unit": PERCENTAGE,
-     "url": DUCO_ZONE2, "path": ["trgt"]},
-    {"name": "Duco zone 2 boven actl", "unique_id": "duco_zone2_actl", "unit": PERCENTAGE,
-     "url": DUCO_ZONE2, "path": ["actl"]},
-    {"name": "Duco zone 2 boven snsr", "unique_id": "duco_zone2_snsr", "unit": PERCENTAGE,
-     "url": DUCO_ZONE2, "path": ["snsr"]},
-
-    # --- Node 2 ---
-    {"name": "Duco node 2 Badkamer Temp", "unique_id": "duco_node2_temp", "unit": UnitOfTemperature.CELSIUS,
-     "url": DUCO_NODE2, "path": ["temp"], "device_class": SensorDeviceClass.TEMPERATURE},
-    {"name": "Duco node 2 Badkamer rh", "unique_id": "duco_node2_rh", "unit": PERCENTAGE,
-     "url": DUCO_NODE2, "path": ["rh"], "device_class": SensorDeviceClass.HUMIDITY},
-    {"name": "Duco node 2 Badkamer snsr", "unique_id": "duco_node2_snsr", "unit": PERCENTAGE,
-     "url": DUCO_NODE2, "path": ["snsr"]},
-
-    # --- Node 3 ---
-    {"name": "Duco node 3 Slaapkamer Temp", "unique_id": "duco_node3_temp", "unit": UnitOfTemperature.CELSIUS,
-     "url": DUCO_NODE3, "path": ["temp"], "device_class": SensorDeviceClass.TEMPERATURE},
-    {"name": "Duco node 3 Slaapkamer co2", "unique_id": "duco_node3_co2",
-     "unit": CONCENTRATION_PARTS_PER_MILLION, "url": DUCO_NODE3, "path": ["co2"],
-     "device_class": SensorDeviceClass.CO2},
-    {"name": "Duco node 3 Slaapkamer snsr", "unique_id": "duco_node3_snsr", "unit": PERCENTAGE,
-     "url": DUCO_NODE3, "path": ["snsr"]},
-
-    # --- Node 4 ---
-    {"name": "Duco node 4 Woonkamer Temp", "unique_id": "duco_node4_temp", "unit": UnitOfTemperature.CELSIUS,
-     "url": DUCO_NODE4, "path": ["temp"], "device_class": SensorDeviceClass.TEMPERATURE},
-    {"name": "Duco node 4 Woonkamer co2", "unique_id": "duco_node4_co2",
-     "unit": CONCENTRATION_PARTS_PER_MILLION, "url": DUCO_NODE4, "path": ["co2"],
-     "device_class": SensorDeviceClass.CO2},
-    {"name": "Duco node 4 Woonkamer snsr", "unique_id": "duco_node4_snsr", "unit": PERCENTAGE,
-     "url": DUCO_NODE4, "path": ["snsr"]},
+SENSOR_MAP = [
+    ("EnergyInfo", "FilterRemainingTime", "time", "hours"),
+    ("EnergyFan", "SupplyFanSpeed", "speed", "rpm"),
+    ("EnergyFan", "ExhaustFanSpeed", "speed", "rpm"),
+    ("EnergyFan", "SupplyFanPressActual", None, "Pa"),
+    ("EnergyFan", "SupplyFanPressTarget", None, "Pa"),
+    ("EnergyFan", "ExhaustFanPressActual", None, "Pa"),
+    ("EnergyFan", "ExhaustFanPressTarget", None, "Pa"),
+    ("EnergyInfo", "TempODA", "temperature", "°C"),
+    ("EnergyInfo", "TempSUP", "temperature", "°C"),
+    ("EnergyInfo", "TempETA", "temperature", "°C"),
+    ("EnergyInfo", "TempEHA", "temperature", "°C"),
 ]
 
-
-def _build_device_info(host: str) -> DeviceInfo:
-    """
-    Helper: maakt het DeviceInfo object voor de Device Registry.
-
-    Doel:
-    - Groepeert alle entiteiten onder één apparaat ("DucoBox").
-
-    Parameters:
-    - host: de geconfigureerde host/IP van de DucoBox (str)
-
-    Return:
-    - DeviceInfo: object met identifiers, naam en basismetadata
-    """
-    return DeviceInfo(
-        identifiers={("ducobox", host)},       # dezelfde identifiers voor alle entiteiten van deze box
-        name="DucoBox",
-        manufacturer="DUCO",
-        model="DucoBox Energy Comfort",
-        configuration_url=f"http://{host}",    # klikbare link in HA UI
-    )
-
-
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities):
-    """
-    Setup voor UI-configuratie (config entry).
+    data = hass.data[DOMAIN][entry.entry_id]
+    coordinator = data["coordinator"]
+    base_device_id = coordinator.base_device_id or "ducobox-unknown"
 
-    Doel:
-    - Maakt sensor-entiteiten aan voor de geconfigureerde DucoBox.
-    - Koppelt entiteiten aan het Device ("DucoBox") via DeviceInfo.
+    entities = []
+    for section, key, device_class, unit in SENSOR_MAP:
+        name = f"{entry.title} {key}"
+        unique_id = f"{base_device_id}-box-{key.lower()}"
+        entities.append(DucoBoxSimpleSensor(coordinator, name, unique_id, section, key, unit, device_class))
 
-    Parameters:
-    - hass: HomeAssistant instance
-    - entry: ConfigEntry met data: host (str), verify_ssl (bool)
-    - async_add_entities: callback om entiteiten aan HA toe te voegen
+    # Per-node sensors: actl/trgt plus humidity & CO2 if available
+    for node in coordinator.nodes:
+        devtype = node.get('devtype', 'unknown')
+        subtype = int(node.get('subtype', 0))
+        node_id = int(node.get('node', 0))
+        serialnb = node.get('serialnb', 'n-a')
+        location = node.get('location', f"Node {node_id}")
+        for metric_key, unit in (("actl", "%"), ("trgt", "%")):
+            name = f"{location} {metric_key.upper()}"
+            unique_id = coordinator.api.build_entity_unique_id(base_device_id, devtype, subtype, node_id, serialnb, metric_key)
+            entities.append(DucoNodeValueSensor(coordinator, name, unique_id, node_id, metric_key, unit))
+        humidity_val = node.get('rh')
+        co2_val = node.get('co2')
+        if humidity_val is not None:
+            uid = coordinator.api.build_entity_unique_id(base_device_id, devtype, subtype, node_id, serialnb, "humidity")
+            entities.append(DucoNodeEnvSensor(coordinator, f"{location} Humidity", uid, node_id, "humidity", "%"))
+        if co2_val is not None:
+            uid = coordinator.api.build_entity_unique_id(base_device_id, devtype, subtype, node_id, serialnb, "co2")
+            entities.append(DucoNodeEnvSensor(coordinator, f"{location} CO2", uid, node_id, "co2", "ppm"))
 
-    Return:
-    - None
-    """
-    session = async_get_clientsession(hass)
-    host = entry.data.get("host")
-    # verify_ssl: uit options (indien aanwezig), anders data fallback
-    verify_ssl = entry.options.get("verify_ssl", entry.data.get("verify_ssl", False))
-    if not host:
-        return
+    async_add_entities(entities)
 
-    device_info = _build_device_info(host)
-
-    entities = [
-        DucoBoxSensor(
-            session=session,
-            name=desc["name"],
-            #object_id=desc["unique_id"],
-            unique_id=desc["unique_id"],
-            unit=desc.get("unit"),
-            url=desc["url"].format(host=host),
-            path=desc["path"],
-            scale=desc.get("scale", 1.0),
-            device_class=desc.get("device_class"),
-            verify_ssl=verify_ssl,
-            device_info=device_info,  # koppeling met Device
-        )
-        for desc in SENSOR_DESCRIPTIONS
-    ]
-    async_add_entities(entities, True)
-
-
-async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
-    """
-    Legacy YAML-setup (optioneel).
-
-    Doel:
-    - Ondersteunt 'sensor: - platform: ducobox' configuratie zonder UI.
-
-    Parameters:
-    - hass: HomeAssistant instance
-    - config: dict met 'host' (str) en optioneel 'verify_ssl' (bool)
-    - async_add_entities: callback
-    - discovery_info: niet gebruikt
-
-    Return:
-    - None
-    """
-    session = async_get_clientsession(hass)
-    host = config.get("host")
-    verify_ssl = config.get("verify_ssl", False)
-    if not host:
-        return
-
-    device_info = _build_device_info(host)
-
-    entities = [
-        DucoBoxSensor(
-            session=session,
-            name=desc["name"],
-            unique_id=desc["unique_id"],
-            unit=desc.get("unit"),
-            url=desc["url"].format(host=host),
-            path=desc["path"],
-            scale=desc.get("scale", 1.0),
-            device_class=desc.get("device_class"),
-            verify_ssl=verify_ssl,
-            device_info=device_info,
-        )
-        for desc in SENSOR_DESCRIPTIONS
-    ]
-    async_add_entities(entities, True)
-
-
-def _extract_value(data: dict, path: list[str]) -> Any | None:
-    """
-    Helper: haalt een waarde uit genest JSON via een key-pad.
-
-    Parameters:
-    - data: dict (volledige JSON payload)
-    - path: lijst van keys, bijv. ["EnergyInfo", "TempSUP"]
-
-    Return:
-    - de gevonden waarde (Any) of None als pad niet bestaat
-    """
-    cur: Any = data
-    for key in path:
-        if not isinstance(cur, dict):
-            return None
-        cur = cur.get(key)
-        if cur is None:
-            return None
-    return cur
-
-
-class DucoBoxSensor(SensorEntity):
-    """
-    Entiteitsklasse voor één DucoBox sensor.
-
-    Doel:
-    - Haalt periodiek data op via HTTP (aiohttp) en stelt native_value.
-
-    Belangrijk:
-    - _attr_should_poll = True -> gebruikt SCAN_INTERVAL voor polling
-    - DeviceInfo (_attr_device_info) koppelt entiteit aan het apparaat.
-    """
-
-    _attr_should_poll = True
-
-    def __init__(
-        self,
-        session,
-        name: str,
-        unique_id: str,
-        unit: str | None,
-        url: str,
-        path: list[str],
-        scale: float = 1.0,
-        device_class: SensorDeviceClass | None = None,
-        verify_ssl: bool = False,
-        device_info: DeviceInfo | None = None,
-    ) -> None:
-        """
-        Constructor.
-
-        Parameters:
-        - session: aiohttp ClientSession (gedeeld door HA)
-        - name: entiteitsnaam (str)
-        - unique_id: unieke id (str)
-        - unit: unit of measurement (str | None)
-        - url: endpoint voor dit datapunt (str)
-        - path: JSON key-pad (list[str])
-        - scale: vermenigvuldigingsfactor (float, default 1.0)
-        - device_class: optioneel, UI weergaveklasse
-        - verify_ssl: certificaatcontrole bij HTTPS (bool)
-        - device_info: koppeling met Device registry (optioneel)
-
-        Return:
-        - None
-        """
-        self._session = session
+class DucoBoxSimpleSensor(CoordinatorEntity, SensorEntity):
+    def __init__(self, coordinator, name: str, unique_id: str, section: str, key: str, unit: str, device_class: str | None = None) -> None:
+        super().__init__(coordinator)
         self._attr_name = name
-        #self._attr_suggested_object_id = unique_id ##PDB added 22/12
         self._attr_unique_id = unique_id
+        self._section = section
+        self._key = key
         self._attr_native_unit_of_measurement = unit
-        self._url = url
-        self._path = path
-        self._scale = scale
-        self._attr_native_value = None
-        self._verify_ssl = verify_ssl
+        self._attr_device_class = device_class if device_class in ("temperature", "humidity") else None
 
-        if device_class:
-            self._attr_device_class = device_class
+    @property
+    def device_info(self):
+        base = self.coordinator.base_device_id or "ducobox-unknown"
+        return {
+            "identifiers": {(DOMAIN, base)},
+            "manufacturer": "Duco",
+            "model": "DucoBox",
+            "name": self.coordinator.entry.title,
+        }
 
-        if device_info is not None:
-            # Koppeling met het apparaat "DucoBox"
-            self._attr_device_info = device_info
+    @property
+    def native_value(self) -> Any:
+        box = self.coordinator.data.get("box", {})
+        section = box.get(self._section, {})
+        val = section.get(self._key)
+        if self._attr_device_class == "temperature" and isinstance(val, (int, float)):
+            return round(val / 10.0, 1) if val and val > 100 else val
+        return val
 
-    async def async_update(self) -> None:
-        """
-        Polling update.
+class DucoNodeValueSensor(CoordinatorEntity, SensorEntity):
+    def __init__(self, coordinator, name: str, unique_id: str, node_id: int, key: str, unit: str) -> None:
+        super().__init__(coordinator)
+        self._attr_name = name
+        self._attr_unique_id = unique_id
+        self._node_id = node_id
+        self._key = key
+        self._attr_native_unit_of_measurement = unit
 
-        Doel:
-        - Haalt actuele JSON op vanaf self._url.
-        - Extraheert waarde via _extract_value en zet native_value.
-        - Past optioneel schaalfactor toe.
+    @property
+    def device_info(self):
+        base = self.coordinator.base_device_id or "ducobox-unknown"
+        return {
+            "identifiers": {(DOMAIN, base)},
+            "manufacturer": "Duco",
+            "model": "DucoBox",
+            "name": self.coordinator.entry.title,
+        }
 
-        Parameters:
-        - None
+    @property
+    def native_value(self):
+        for node in self.coordinator.nodes:
+            if node.get('node') == self._node_id:
+                return node.get(self._key)
+        return None
 
-        Return:
-        - None
-        """
-        try:
-            async with async_timeout.timeout(10):
-                resp = await self._session.get(self._url, ssl=self._verify_ssl or None)
-                if resp.status != 200:
-                    return
-                data = await resp.json(content_type=None)
-        except Exception:
-            return
+class DucoNodeEnvSensor(CoordinatorEntity, SensorEntity):
+    def __init__(self, coordinator, name: str, unique_id: str, node_id: int, kind: str, unit: str) -> None:
+        super().__init__(coordinator)
+        self._attr_name = name
+        self._attr_unique_id = unique_id
+        self._node_id = node_id
+        self._kind = kind
+        self._attr_native_unit_of_measurement = unit
+        if kind == "humidity":
+            self._attr_device_class = "humidity"
+        elif kind == "co2":
+            self._attr_device_class = "carbon_dioxide"
+        else:
+            self._attr_device_class = None
 
-        raw = _extract_value(data, self._path)
-        if raw is None:
-            return
+    @property
+    def device_info(self):
+        base = self.coordinator.base_device_id or "ducobox-unknown"
+        return {
+            "identifiers": {(DOMAIN, base)},
+            "manufacturer": "Duco",
+            "model": "DucoBox",
+            "name": self.coordinator.entry.title,
+        }
 
-        try:
-            value = float(raw) * self._scale
-        except Exception:
-            value = raw
-
-        self._attr_native_value = value
-
-
-
+    @property
+    def native_value(self):
+        for node in self.coordinator.nodes:
+            if node.get('node') == self._node_id:
+                if self._kind == 'humidity':
+                    return node.get('rh')
+                if self._kind == 'co2':
+                    return node.get('co2')
+        return None
