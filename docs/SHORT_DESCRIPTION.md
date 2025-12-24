@@ -1,0 +1,1 @@
+DucoBox with *predefined* nodes loaded from /config/ducobox/nodes.json; no auto-discovery.

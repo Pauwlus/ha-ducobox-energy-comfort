@@ -1,0 +1,32 @@
+[
+  {
+    "node": 67,
+    "devtype": "VLV",
+    "subtype": 0,
+    "location": "Zone 1 - Beneden"
+  },
+  {
+    "node": 68,
+    "devtype": "VLV",
+    "subtype": 0,
+    "location": "Zone 2 - Boven"
+  },
+  {
+    "node": 2,
+    "devtype": "UCRH",
+    "subtype": 0,
+    "location": "Badkamer"
+  },
+  {
+    "node": 3,
+    "devtype": "UCCO2",
+    "subtype": 0,
+    "location": "Slaapkamer"
+  },
+  {
+    "node": 4,
+    "devtype": "UCCO2",
+    "subtype": 0,
+    "location": "Woonkamer"
+  }
+]

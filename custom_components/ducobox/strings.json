@@ -21,7 +21,8 @@
         "data": {
           "host": "Hostname or IP",
           "friendly_name": "Friendly device name",
-          "scan_interval": "Scan interval (seconds)"
+          "scan_interval": "Scan interval (seconds)",
+          "create_node_controls": "Create node entities (controls & sensors)"
         }
       }
     }

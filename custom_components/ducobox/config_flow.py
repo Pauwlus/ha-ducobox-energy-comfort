@@ -1,3 +1,4 @@
+
 from __future__ import annotations
 import logging
 from typing import Any, Dict, Optional
@@ -21,12 +22,12 @@ _LOGGER = logging.getLogger(__name__)
 STEP_USER_DATA_SCHEMA = vol.Schema({
     vol.Required(CONF_HOST): str,
     vol.Required(CONF_FRIENDLY_NAME): str,
-    vol.Required(CONF_SCAN_INTERVAL, default=30): int,
+    vol.Required(CONF_SCAN_INTERVAL, default=45): int,
 })
 
 class DucoBoxConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
-    MINOR_VERSION = 4
+    MINOR_VERSION = 7
 
     async def async_step_user(self, user_input: Optional[Dict[str, Any]] = None) -> FlowResult:
         errors: Dict[str, str] = {}
@@ -76,7 +77,7 @@ class DucoBoxOptionsFlowHandler(config_entries.OptionsFlow):
         schema = vol.Schema({
             vol.Required(CONF_HOST, default=self.entry.data.get(CONF_HOST)): str,
             vol.Required(CONF_FRIENDLY_NAME, default=self.entry.title): str,
-            vol.Required(CONF_SCAN_INTERVAL, default=self.entry.data.get(CONF_SCAN_INTERVAL, 30)): int,
+            vol.Required(CONF_SCAN_INTERVAL, default=self.entry.data.get(CONF_SCAN_INTERVAL, 45)): int,
             vol.Required(CONF_CREATE_NODE_CONTROLS, default=self.entry.options.get(CONF_CREATE_NODE_CONTROLS, True)): bool,
         })
         return self.async_show_form(step_id="init", data_schema=schema)
