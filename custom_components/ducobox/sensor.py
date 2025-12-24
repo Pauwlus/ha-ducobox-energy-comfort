@@ -34,7 +34,7 @@ ALLOWED_NODE_DEVTYPES = {"UCRH", "UCCO2", "VLV"}
 # ---------------------------------------------------------------------------
 
 SENSOR_MAP = [
-    ("EnergyInfo", "FilterRemainingTime", "time", "hours", "Filter Remaining Time", "filter_remaining_time"),
+    ("EnergyInfo", "FilterRemainingTime", "time", "days", "Filter Remaining Time", "filter_remaining_time"),
     ("EnergyFan", "SupplyFanSpeed", "speed", "rpm", "Supply Fan Speed", "supply_fan_speed"),
     ("EnergyFan", "ExhaustFanSpeed", "speed", "rpm", "Exhaust Fan Speed", "exhaust_fan_speed"),
     ("EnergyFan", "SupplyFanPressActual", None, "Pa", "Supply Fan Pressure (Actual)", "supply_fan_pressure_actual"),
