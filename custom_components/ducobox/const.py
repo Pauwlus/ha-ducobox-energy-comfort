@@ -12,4 +12,4 @@ DUCO_OPERATION_MODES = ["AUTO", "MAN1", "MAN2", "MAN3"]
 
 BOX_INFO_ENDPOINT = "/boxinfoget"
 NODE_INFO_ENDPOINT = "/nodeinfoget?node={node}"
-SET_NODE_MODE_ENDPOINT = "/nodesetoperstate?node={node}&mode={mode}"
+SET_NODE_MODE_ENDPOINT = "/nodesetoperstate?node={node}&value={mode}"
