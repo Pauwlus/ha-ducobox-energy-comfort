@@ -21,8 +21,8 @@ def slugify_location(loc: str) -> str:
     slug = slug.strip("_")
     return f"ducobox_{slug}" if slug else "ducobox_node"
 
-# Only expose per-node sensors for these device types
-ALLOWED_NODE_DEVTYPES = {"VLV"}
+# Node device types to include
+ALLOWED_NODE_DEVTYPES = {"UCRH", "UCCO2", "VLV"}
 
 # Box-level sensors from /boxinfoget
 SENSOR_MAP = [
@@ -55,9 +55,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         ent._attr_has_entity_name = True
         entities.append(ent)
 
-    # Respect option: create node entities (controls & sensors)
-    create_nodes = entry.options.get(CONF_CREATE_NODE_CONTROLS, False)
-    if create_nodes:
+    # Option: create node sensors for UCRH/UCCO2/VLV
+    if entry.options.get(CONF_CREATE_NODE_CONTROLS, False):
         for node in coordinator.nodes:
             devtype = (node.get("devtype") or "unknown").upper()
             if devtype not in ALLOWED_NODE_DEVTYPES:
@@ -69,39 +68,36 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
             location = node.get("location", f"Node {node_id}")
             loc_slug = slugify_location(location)
 
-            # Airflow Actual (%)
-            metric_key = "actl"
-            uid = coordinator.api.build_entity_unique_id(base_device_id, devtype, subtype, node_id, serialnb, metric_key)
-            ent = DucoNodeValueSensor(coordinator, f"{location} Airflow Actual (%)", uid, node_id, metric_key, "%")
-            ent._attr_suggested_object_id = f"{loc_slug}_airflow_actual"
-            ent._attr_has_entity_name = True
-            entities.append(ent)
-
-            # Airflow Target (%)
-            metric_key = "trgt"
-            uid = coordinator.api.build_entity_unique_id(base_device_id, devtype, subtype, node_id, serialnb, metric_key)
-            ent = DucoNodeValueSensor(coordinator, f"{location} Airflow Target (%)", uid, node_id, metric_key, "%")
-            ent._attr_suggested_object_id = f"{loc_slug}_airflow_target"
-            ent._attr_has_entity_name = True
-            entities.append(ent)
-
-            # Humidity (rh)
-            if node.get("rh") is not None:
-                uid = coordinator.api.build_entity_unique_id(base_device_id, devtype, subtype, node_id, serialnb, "humidity")
-                ent = DucoNodeEnvSensor(coordinator, f"{location} Humidity", uid, node_id, "humidity", "%")
-                ent._attr_suggested_object_id = f"{loc_slug}_humidity"
+            # Common node metrics: mode/state/trgt/actl/snsr
+            metrics = [
+                ("mode", None, f"{location} Mode", f"{loc_slug}_mode"),
+                ("state", None, f"{location} State", f"{loc_slug}_state"),
+                ("trgt", "%", f"{location} Airflow Target (%)", f"{loc_slug}_airflow_target"),
+                ("actl", "%", f"{location} Airflow Actual (%)", f"{loc_slug}_airflow_actual"),
+                ("snsr", None, f"{location} Sensor", f"{loc_slug}_sensor"),
+            ]
+            for key, unit, friendly, obj_id in metrics:
+                uid = coordinator.api.build_entity_unique_id(base_device_id, devtype, subtype, node_id, serialnb, key)
+                ent = DucoNodeGenericSensor(coordinator, friendly, uid, node_id, key, unit)
+                ent._attr_suggested_object_id = obj_id
                 ent._attr_has_entity_name = True
                 entities.append(ent)
 
-            # CO2 (co2)
+            # Optional: expose humidity and CO2 if present
+            if node.get("rh") is not None:
+                uid = coordinator.api.build_entity_unique_id(base_device_id, devtype, subtype, node_id, serialnb, "humidity")
+                ent = DucoNodeGenericSensor(coordinator, f"{location} Humidity", uid, node_id, "rh", "%")
+                ent._attr_suggested_object_id = f"{loc_slug}_humidity"
+                ent._attr_has_entity_name = True
+                entities.append(ent)
             if node.get("co2") is not None:
                 uid = coordinator.api.build_entity_unique_id(base_device_id, devtype, subtype, node_id, serialnb, "co2")
-                ent = DucoNodeEnvSensor(coordinator, f"{location} CO2", uid, node_id, "co2", "ppm")
+                ent = DucoNodeGenericSensor(coordinator, f"{location} CO2", uid, node_id, "co2", "ppm")
                 ent._attr_suggested_object_id = f"{loc_slug}_co2"
                 ent._attr_has_entity_name = True
                 entities.append(ent)
     else:
-        _LOGGER.info("DucoBox: Node entities disabled via options; only box sensors will be created.")
+        _LOGGER.info("DucoBox: Node entities disabled via options; only box sensors are active.")
 
     async_add_entities(entities)
 
@@ -134,43 +130,18 @@ class DucoBoxSimpleSensor(CoordinatorEntity, SensorEntity):
             return round(val / 10.0, 1) if val and val > 100 else val
         return val
 
-class DucoNodeValueSensor(CoordinatorEntity, SensorEntity):
-    def __init__(self, coordinator, name: str, unique_id: str, node_id: int, key: str, unit: str) -> None:
+class DucoNodeGenericSensor(CoordinatorEntity, SensorEntity):
+    def __init__(self, coordinator, name: str, unique_id: str, node_id: int, key: str, unit: str | None) -> None:
         super().__init__(coordinator)
         self._attr_name = name
         self._attr_unique_id = unique_id
         self._node_id = node_id
         self._key = key
         self._attr_native_unit_of_measurement = unit
-
-    @property
-    def device_info(self):
-        base = self.coordinator.base_device_id or "ducobox-unknown"
-        return {
-            "identifiers": {(DOMAIN, base)},
-            "manufacturer": "Duco",
-            "model": "DucoBox",
-            "name": self.coordinator.entry.title,
-        }
-
-    @property
-    def native_value(self):
-        for node in self.coordinator.nodes:
-            if node.get("node") == self._node_id:
-                return node.get(self._key)
-        return None
-
-class DucoNodeEnvSensor(CoordinatorEntity, SensorEntity):
-    def __init__(self, coordinator, name: str, unique_id: str, node_id: int, kind: str, unit: str) -> None:
-        super().__init__(coordinator)
-        self._attr_name = name
-        self._attr_unique_id = unique_id
-        self._node_id = node_id
-        self._kind = kind
-        self._attr_native_unit_of_measurement = unit
-        if kind == "humidity":
+        # Map simple device classes for known keys
+        if key in ("rh", "humidity"):
             self._attr_device_class = "humidity"
-        elif kind == "co2":
+        elif key == "co2":
             self._attr_device_class = "carbon_dioxide"
         else:
             self._attr_device_class = None
@@ -189,8 +160,5 @@ class DucoNodeEnvSensor(CoordinatorEntity, SensorEntity):
     def native_value(self):
         for node in self.coordinator.nodes:
             if node.get("node") == self._node_id:
-                if self._kind == 'humidity':
-                    return node.get('rh')
-                if self._kind == 'co2':
-                    return node.get('co2')
+                return node.get(self._key)
         return None

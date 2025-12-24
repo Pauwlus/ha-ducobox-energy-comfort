@@ -16,15 +16,13 @@ def slugify_location(loc: str) -> str:
     slug = re.sub(r"[^a-z0-9]+", "_", (loc or "").lower())
     return f"ducobox_{slug.strip('_')}" if slug else "ducobox_node"
 
-ALLOWED_NODE_DEVTYPES = {"VLV"}
+ALLOWED_NODE_DEVTYPES = {"UCRH", "UCCO2", "VLV"}
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities):
     data = hass.data[DOMAIN][entry.entry_id]
     coordinator = data["coordinator"]
 
-    # Respect option toggle
-    create_nodes = entry.options.get(CONF_CREATE_NODE_CONTROLS, False)
-    if not create_nodes:
+    if not entry.options.get(CONF_CREATE_NODE_CONTROLS, False):
         _LOGGER.info("DucoBox: Node controls disabled via options.")
         async_add_entities([])
         return
@@ -34,6 +32,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         devtype = (node.get("devtype") or "").upper()
         if devtype not in ALLOWED_NODE_DEVTYPES:
             continue
+        # Only create a control if node reports 'mode' key
         if node.get("mode") is None:
             continue
 
