@@ -1,7 +1,7 @@
 {
   "domain": "ducobox",
   "name": "DucoBox",
-  "version": "0.3.0",
+  "version": "0.3.4",
   "documentation": "https://github.com/your-org-or-user/ha-ducobox",
   "issue_tracker": "https://github.com/your-org-or-user/ha-ducobox/issues",
   "codeowners": [

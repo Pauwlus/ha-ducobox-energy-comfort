@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 import logging
 from typing import Any, Dict, Optional
@@ -27,7 +26,7 @@ STEP_USER_DATA_SCHEMA = vol.Schema({
 
 class DucoBoxConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
-    MINOR_VERSION = 2
+    MINOR_VERSION = 4
 
     async def async_step_user(self, user_input: Optional[Dict[str, Any]] = None) -> FlowResult:
         errors: Dict[str, str] = {}
@@ -58,7 +57,6 @@ class DucoBoxOptionsFlowHandler(config_entries.OptionsFlow):
 
     async def async_step_init(self, user_input: Optional[Dict[str, Any]] = None) -> FlowResult:
         if user_input is not None:
-            # Split between data (connection settings) and options (behavior toggles)
             new_data = dict(self.entry.data)
             new_data[CONF_HOST] = user_input[CONF_HOST]
             new_data[CONF_SCAN_INTERVAL] = user_input[CONF_SCAN_INTERVAL]
@@ -79,6 +77,6 @@ class DucoBoxOptionsFlowHandler(config_entries.OptionsFlow):
             vol.Required(CONF_HOST, default=self.entry.data.get(CONF_HOST)): str,
             vol.Required(CONF_FRIENDLY_NAME, default=self.entry.title): str,
             vol.Required(CONF_SCAN_INTERVAL, default=self.entry.data.get(CONF_SCAN_INTERVAL, 30)): int,
-            vol.Required(CONF_CREATE_NODE_CONTROLS, default=self.entry.options.get(CONF_CREATE_NODE_CONTROLS, False)): bool,
+            vol.Required(CONF_CREATE_NODE_CONTROLS, default=self.entry.options.get(CONF_CREATE_NODE_CONTROLS, True)): bool,
         })
         return self.async_show_form(step_id="init", data_schema=schema)
