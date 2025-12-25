@@ -1,45 +1,133 @@
 
-# DucoBox (Home Assistant Custom Integration) — v0.3.7 (Predefined Nodes)
+# DucoBox Home Assistant Integration (HACS)
 
-This build **disables auto-discovery** and instead **loads nodes from a JSON file**.
+A custom Home Assistant integration for **Duco Box** ventilation systems, installable via **HACS**. It automatically discovers nodes from the DucoBox configuration page and creates sensor entities with **stable, hardware-derived unique IDs** and friendly names.
 
-- Preferred user-editable file: **`/config/ducobox/nodes.json`**
-- Fallback (shipped): **`custom_components/ducobox/nodes.json`**
+> Documentation: https://github.com/Pauwlus/ha-ducobox-energy-comfort
 
-Each entry looks like:
-```json
-{
-  "node": 67,
-  "devtype": "VLV",
-  "subtype": 0,
-  "location": "Zone 1 - Beneden",
-  "serialnb": "optional"
-}
+---
+
+## ✨ Features
+
+- **Automatic discovery** of nodes from `http://ducobox.localdomain/index.html` during setup
+- Per-node data read from `http://ducobox.localdomain/nodeinfoget?node={node}`
+- **Stable IDs** derived from hardware fields: `devtype`, `subtype`, `node/zone id`, `serial`
+  - Lowercase ASCII; separators: `_` or `-`
+  - Unique per entity and **stable** across restarts/updates
+- **Devices** created for nodes of type **UCHR**, **UCCO2**, **VLV** with the name `DucoBox node - {location}`
+- **BOX** device named `DucoBox - {nodenumber}`
+- **Sensors** created with friendly names:
+  - Node friendly name: `{Location description}`
+  - Entity friendly name: `{Location description} {item name}`
+- Entities by type:
+  - **BOX**: all attributes inside categories `energyinfo` and `energyfan`
+  - **UCHR**: `temp`, `rh`, `snsr`, `state`
+  - **UCCO2**: `temp`, `co2`, `snsr`
+  - **VLV**: `trgt`, `actl`, `snsr`
+- Installation + configuration via **HACS** with:
+  - Hostname
+  - Friendly device name (default: `DucoBox Energy Comfort`)
+  - Scan interval
+  - Area selection per discovered node
+
+---
+
+## 📦 Installation (HACS)
+
+1. In HACS, go to **Integrations** → **⋮** → **Custom repositories**.
+2. Add this repository URL and select category **Integration**.
+3. Install **DucoBox**.
+4. In Home Assistant, go to **Settings → Devices & services → + Add Integration → DucoBox**.
+5. Enter:
+   - **Hostname**: e.g., `ducobox.localdomain` or IP
+   - **Friendly name**: e.g., `DucoBox Energy Comfort`
+   - **Scan interval** (seconds)
+6. Select an **Area** for each discovered node (optional). Areas can be changed later from **Devices**.
+
+---
+
+## 🔧 Configuration Details
+
+- **Entity IDs** are explicitly created following the spec, e.g.: `sensor.ducobox_uchr_12_123456_temp`
+- **Unique IDs** are derived at installation: `devtype_subtype_node_serial` (lowercase ASCII)
+- **Device names**:
+  - `DucoBox node - {location}` for UCHR/UCCO2/VLV
+  - `DucoBox - {nodenumber}` for BOX
+- **Units**:
+  - `temp` → °C
+  - `rh`  → %
+  - `co2` → ppm
+
+---
+
+## 🧠 How it works
+
+- A background coordinator polls the DucoBox on the configured interval.
+- Node discovery is done by scraping the index HTML and fetching per-node info.
+- Sensors are created and linked to the proper device with friendly names.
+- The integration enforces **entity_id** in the entity registry so IDs stay consistent.
+
+---
+
+## 🛡️ Notes & Caveats
+
+- The integration uses local HTTP (`aiohttp`) and does not require cloud access.
+- If your DucoBox pages differ in format, discovery uses best-effort parsing of tables and key-value lines.
+- Areas can be assigned during setup; you can change them any time in **Settings → Areas**.
+
+---
+
+## 📁 Repository Structure
+
+```
+custom_components/ducobox/
+├── __init__.py
+├── api.py
+├── config_flow.py
+├── const.py
+├── coordinator.py
+├── manifest.json
+├── sensor.py
+hacs.json
+README.md
 ```
 
-## Endpoints & behavior
-- Box info: `GET /boxinfoget`
-- Node info: `GET /nodeinfoget?node={id}`
-- Set mode:  `POST /nodesetoperstate?node={id}&mode={AUTO|MAN1|MAN2|MAN3}`
+---
 
-## Entities
-- BOX sensors: filter remaining time (**days**), fan speeds (**rpm**, no speed device_class), pressures (Pa), temperatures (°C).
-- Per-node sensors (for UCRH/UCCO2/VLV): `mode`, `state`, `trgt` (%), `actl` (%), `snsr`, plus `rh` (%) and `co2` (ppm) if present.
-- Per-node **Operation Mode** control (select) when the node reports `mode`.
+## 🧪 Testing
 
-## Options
-- **Create node entities (controls & sensors)** — defaults **ON**.
+- Enable debug logging in `configuration.yaml`:
 
-## How to edit nodes
-1. Copy `custom_components/ducobox/nodes.json` to `/config/ducobox/nodes.json`.
-2. Edit the file with your node IDs / locations / devtypes (e.g., `UCRH`, `UCCO2`, `VLV`).
-3. In HA, go to **Settings → Devices & Services → DucoBox → Reload** (or restart Core).
+```yaml
+logger:
+  default: info
+  logs:
+    custom_components.ducobox: debug
+```
 
-## Based on your earlier REST setup
-The sample `nodes.json` reflects your legacy REST sensors:
-- 67: Zone 1 beneden (VLV)
-- 68: Zone 2 boven (VLV)
-- 2:  Badkamer (UCRH)
-- 3:  Slaapkamer (UCCO2)
-- 4:  Woonkamer (UCCO2)
+---
 
+## 📜 License
+
+MIT License.
+```
+Copyright (c) 2025 Pauwlus
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```

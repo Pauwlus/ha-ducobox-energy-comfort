@@ -1,57 +1,117 @@
 
+"""HTTP client for DucoBox."""
 from __future__ import annotations
 import asyncio
-import aiohttp
-import logging
-from typing import Any, Dict, Optional, List
+from typing import Any, Dict, List
+from yarl import URL
 
-from .const import BOX_INFO_ENDPOINT, NODE_INFO_ENDPOINT, SET_NODE_MODE_ENDPOINT
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-_LOGGER = logging.getLogger(__name__)
 
-class DucoBoxApi:
-    def __init__(self, host: str, session: aiohttp.ClientSession) -> None:
+class DucoClient:
+    def __init__(self, hass: HomeAssistant, host: str) -> None:
+        self._hass = hass
         self._host = host.rstrip('/')
-        self._session = session
+        self._session = async_get_clientsession(hass)
 
-    @property
-    def base_url(self) -> str:
-        if self._host.startswith('http://') or self._host.startswith('https://'):
-            return self._host
-        return f"http://{self._host}"
+    def _url(self, path: str) -> URL:
+        base = self._host
+        if not base.startswith("http://") and not base.startswith("https://"):
+            base = f"http://{base}"
+        return URL(base) / path.lstrip('/')
 
-    async def get_box_info(self) -> Dict[str, Any]:
-        url = f"{self.base_url}{BOX_INFO_ENDPOINT}"
+    async def fetch_index(self) -> str:
+        """Fetch the index HTML listing nodes."""
+        url = self._url("index.html")
         async with self._session.get(url, timeout=10) as resp:
             resp.raise_for_status()
-            return await resp.json(content_type=None)
+            return await resp.text()
 
-    async def get_node_info(self, node_id: int) -> Optional[Dict[str, Any]]:
-        url = f"{self.base_url}{NODE_INFO_ENDPOINT.format(node=node_id)}"
+    async def fetch_node_info(self, node: int) -> Dict[str, Any]:
+        """Fetch detailed info for a node."""
+        url = self._url(f"nodeinfoget?node={node}")
         async with self._session.get(url, timeout=10) as resp:
-            if resp.status == 404:
-                return None
             resp.raise_for_status()
-            data = await resp.json(content_type=None)
-            if not isinstance(data, dict) or 'node' not in data:
-                return None
-            return data
+            # Try JSON first, fallback to text parse
+            try:
+                return await resp.json(content_type=None)
+            except Exception:
+                text = await resp.text()
+                return self._parse_kv(text)
 
-    async def set_node_mode(self, node_id: int, mode: str) -> bool:
-        url = f"{self.base_url}{SET_NODE_MODE_ENDPOINT.format(node=node_id, mode=mode)}"
-        async with self._session.post(url, timeout=10) as resp:
-            return resp.status == 200
+    def _parse_kv(self, text: str) -> Dict[str, Any]:
+        """Parse a simple key=value text response into dict."""
+        data: Dict[str, Any] = {}
+        for line in text.splitlines():
+            if '=' in line:
+                k, v = line.split('=', 1)
+                data[k.strip()] = v.strip()
+        return data
 
-    @staticmethod
-    def build_base_device_id(box_info: Dict[str, Any]) -> str:
-        general = box_info.get('General', {}) if isinstance(box_info, dict) else {}
-        rf = str(general.get('RFHomeID', '')).lower().replace(':', '').replace('0x', '')
-        serial = str(general.get('Serial', ''))
-        serial_clean = serial.lower().strip().replace(':', '').replace(' ', '_') if serial else 'unknown'
-        return f"ducobox-{rf}-{serial_clean}"
+    async def discover_nodes(self) -> List[Dict[str, Any]]:
+        """Scrape nodes from the index page.
 
-    @staticmethod
-    def build_entity_unique_id(base_device_id: str, devtype: str, subtype: int, node_id: int, serialnb: str, metric: str) -> str:
-        serial_clean = (serialnb or 'n-a').lower().replace(':', '').replace(' ', '-')
-        devtype_clean = (devtype or 'unknown').lower()
-        return f"{base_device_id}_{devtype_clean}_{subtype}_{node_id}_{serial_clean}_{metric}"
+        Returns list of dicts: {node, devtype, subtype, serial, location}
+        """
+        html = await self.fetch_index()
+        nodes: List[Dict[str, Any]] = []
+        # Very lightweight parsing: look for lines like `node=12`, Type, Serial, Location
+        import re
+        rows = re.findall(r"(?is)<tr[^>]*>(.*?)</tr>", html)
+        for row in rows:
+            cols = re.findall(r"(?is)<t[dh][^>]*>(.*?)</t[dh]>", row)
+            text_cols = [re.sub(r"<[^>]+>", "", c).strip() for c in cols]
+            if not text_cols:
+                continue
+            # Heuristics: find 'node' number in any column
+            node_num = None
+            for c in text_cols:
+                m = re.search(r"node\s*:?\s*(\d+)", c, re.I)
+                if m:
+                    node_num = int(m.group(1))
+                    break
+            # Also accept pure integer column
+            if node_num is None:
+                for c in text_cols:
+                    if c.isdigit():
+                        node_num = int(c)
+                        break
+            if node_num is None:
+                continue
+            # Type/devtype
+            devtype = None
+            for c in text_cols:
+                if re.search(r"(BOX|UCHR|UCCO2|VLV)", c, re.I):
+                    devtype = re.search(r"(BOX|UCHR|UCCO2|VLV)", c, re.I).group(1).upper()
+                    break
+            # Subtype & serial
+            subtype = None
+            serial = None
+            for c in text_cols:
+                m = re.search(r"subtype\s*:?\s*([\w-]+)", c, re.I)
+                if m:
+                    subtype = m.group(1)
+                m2 = re.search(r"serial\s*:?\s*([\w-]+)", c, re.I)
+                if m2:
+                    serial = m2.group(1)
+            # Location
+            location = None
+            for c in text_cols:
+                if re.search(r"(location|room|zone)\s*:?", c, re.I):
+                    # assume after colon
+                    parts = re.split(r":", c)
+                    if len(parts) > 1:
+                        location = parts[1].strip()
+                # Else last column might be location name
+            if location is None and len(text_cols) >= 3:
+                location = text_cols[-1]
+            nodes.append({"node": node_num, "devtype": devtype or "NODE", "subtype": subtype, "serial": serial, "location": location or f"Node {node_num}"})
+        # If no table rows, fallback: scan text lines
+        if not nodes:
+            for line in html.splitlines():
+                m = re.search(r"node\s*(\d+).*type\s*(BOX|UCHR|UCCO2|VLV)", line, re.I)
+                if m:
+                    nodes.append({"node": int(m.group(1)), "devtype": m.group(2).upper(), "subtype": None, "serial": None, "location": f"Node {m.group(1)}"})
+        return nodes
+

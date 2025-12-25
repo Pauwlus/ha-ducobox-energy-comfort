@@ -1,83 +1,69 @@
 
+"""Config flow for DucoBox."""
 from __future__ import annotations
-import logging
-from typing import Any, Dict, Optional
-
+from typing import Any, Dict
 import voluptuous as vol
+
 from homeassistant import config_entries
-from homeassistant.data_entry_flow import FlowResult
-from homeassistant.helpers import aiohttp_client
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers import area_registry as ar
 
-from .const import (
-    DOMAIN,
-    CONF_HOST,
-    CONF_FRIENDLY_NAME,
-    CONF_SCAN_INTERVAL,
-    CONF_CREATE_NODE_CONTROLS,
-)
-from .api import DucoBoxApi
+from .const import DOMAIN, CONF_HOST, CONF_FRIENDLY_NAME, CONF_SCAN_INTERVAL, DEFAULT_NAME, DEFAULT_SCAN_INTERVAL, OPTION_AREAS
+from .api import DucoClient
 
-_LOGGER = logging.getLogger(__name__)
-
-STEP_USER_DATA_SCHEMA = vol.Schema({
-    vol.Required(CONF_HOST): str,
-    vol.Required(CONF_FRIENDLY_NAME): str,
-    vol.Required(CONF_SCAN_INTERVAL, default=45): int,
-})
 
 class DucoBoxConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
-    MINOR_VERSION = 7
 
-    async def async_step_user(self, user_input: Optional[Dict[str, Any]] = None) -> FlowResult:
-        errors: Dict[str, str] = {}
+    async def async_step_user(self, user_input: Dict[str, Any] | None = None):
+        errors = {}
         if user_input is not None:
-            session = aiohttp_client.async_get_clientsession(self.hass)
-            api = DucoBoxApi(user_input[CONF_HOST], session)
+            host = user_input[CONF_HOST]
+            name = user_input.get(CONF_FRIENDLY_NAME) or DEFAULT_NAME
+            scan_interval = int(user_input.get(CONF_SCAN_INTERVAL) or DEFAULT_SCAN_INTERVAL)
+            # Try to connect and discover nodes
+            client = DucoClient(self.hass, host)
             try:
-                await api.get_box_info()
-            except Exception as err:
-                _LOGGER.warning("Connection failed: %s", err)
+                nodes = await client.discover_nodes()
+                # Proceed to area mapping step, store temp
+                self._host = host
+                self._name = name
+                self._scan_interval = scan_interval
+                self._nodes = nodes
+                return await self.async_step_area_mapping()
+            except Exception as exc:
                 errors["base"] = "cannot_connect"
-            else:
-                unique_id = f"{DOMAIN}-{user_input[CONF_HOST].lower()}"
-                await self.async_set_unique_id(unique_id)
-                self._abort_if_unique_id_configured()
-                return self.async_create_entry(title=user_input[CONF_FRIENDLY_NAME], data=user_input)
-        return self.async_show_form(step_id="user", data_schema=STEP_USER_DATA_SCHEMA, errors=errors)
-
-    async def async_step_import(self, user_input: Dict[str, Any]) -> FlowResult:
-        return await self.async_step_user(user_input)
-
-    async def async_get_options_flow(self, config_entry):
-        return DucoBoxOptionsFlowHandler(config_entry)
-
-class DucoBoxOptionsFlowHandler(config_entries.OptionsFlow):
-    def __init__(self, entry: config_entries.ConfigEntry) -> None:
-        self.entry = entry
-
-    async def async_step_init(self, user_input: Optional[Dict[str, Any]] = None) -> FlowResult:
-        if user_input is not None:
-            new_data = dict(self.entry.data)
-            new_data[CONF_HOST] = user_input[CONF_HOST]
-            new_data[CONF_SCAN_INTERVAL] = user_input[CONF_SCAN_INTERVAL]
-
-            new_options = dict(self.entry.options)
-            new_options[CONF_CREATE_NODE_CONTROLS] = user_input[CONF_CREATE_NODE_CONTROLS]
-
-            self.hass.config_entries.async_update_entry(
-                self.entry,
-                data=new_data,
-                options=new_options,
-                title=user_input[CONF_FRIENDLY_NAME],
-            )
-            await self.hass.config_entries.async_reload(self.entry.entry_id)
-            return self.async_create_entry(title="Options", data={})
-
-        schema = vol.Schema({
-            vol.Required(CONF_HOST, default=self.entry.data.get(CONF_HOST)): str,
-            vol.Required(CONF_FRIENDLY_NAME, default=self.entry.title): str,
-            vol.Required(CONF_SCAN_INTERVAL, default=self.entry.data.get(CONF_SCAN_INTERVAL, 45)): int,
-            vol.Required(CONF_CREATE_NODE_CONTROLS, default=self.entry.options.get(CONF_CREATE_NODE_CONTROLS, True)): bool,
+        data_schema = vol.Schema({
+            vol.Required(CONF_HOST): str,
+            vol.Optional(CONF_FRIENDLY_NAME, default=DEFAULT_NAME): str,
+            vol.Optional(CONF_SCAN_INTERVAL, default=DEFAULT_SCAN_INTERVAL): int,
         })
-        return self.async_show_form(step_id="init", data_schema=schema)
+        return self.async_show_form(step_id="user", data_schema=data_schema, errors=errors)
+
+    async def async_step_area_mapping(self, user_input: Dict[str, Any] | None = None):
+        area_reg = ar.async_get(self.hass)
+        areas = {a.id: a.name for a in area_reg.async_list_areas()}
+        if user_input is not None:
+            # Save mapping and create entry
+            areas_map = {}
+            for n in self._nodes:
+                key = f"{n.get('devtype')}-{n.get('node')}"
+                sel = user_input.get(key)
+                if sel:
+                    areas_map[key] = sel
+            data = {
+                CONF_HOST: self._host,
+                CONF_FRIENDLY_NAME: self._name,
+                CONF_SCAN_INTERVAL: self._scan_interval,
+            }
+            options = {OPTION_AREAS: areas_map}
+            return self.async_create_entry(title=self._name, data=data, options=options)
+        # Build dynamic schema: one dropdown per node
+        schema_dict = {}
+        for n in self._nodes:
+            key = f"{n.get('devtype')}-{n.get('node')}"
+            label = f"Area for {n.get('devtype')} node {n.get('node')} ({n.get('location')})"
+            schema_dict[vol.Optional(key)]= vol.In(areas)
+        data_schema = vol.Schema(schema_dict)
+        return self.async_show_form(step_id="area_mapping", data_schema=data_schema)
+

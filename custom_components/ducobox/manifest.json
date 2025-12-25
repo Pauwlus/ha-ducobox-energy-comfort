@@ -1,19 +1,14 @@
 {
   "domain": "ducobox",
   "name": "DucoBox",
-  "version": "0.3.7",
-  "documentation": "https://github.com/your-org-or-user/ha-ducobox",
-  "issue_tracker": "https://github.com/your-org-or-user/ha-ducobox/issues",
+  "version": "0.1.0",
+  "documentation": "https://github.com/Pauwlus/ha-ducobox-energy-comfort",
+  "issue_tracker": "https://github.com/Pauwlus/ha-ducobox-energy-comfort/issues",
   "codeowners": [
-    "@Paul-den-Boer"
+    "@Pauwlus"
   ],
-  "config_flow": true,
   "iot_class": "local_polling",
   "integration_type": "hub",
-  "requirements": [
-    "aiohttp>=3.9.0"
-  ],
-  "loggers": [
-    "custom_components.ducobox"
-  ]
+  "requirements": [],
+  "config_flow": true
 }

@@ -1,18 +1,25 @@
 
+"""Constants for the DucoBox integration."""
 from __future__ import annotations
 
 DOMAIN = "ducobox"
-DEFAULT_SCAN_INTERVAL = 45
+PLATFORMS = ["sensor"]
+DEFAULT_SCAN_INTERVAL = 30  # seconds
+DEFAULT_NAME = "DucoBox Energy Comfort"
 CONF_HOST = "host"
 CONF_FRIENDLY_NAME = "friendly_name"
 CONF_SCAN_INTERVAL = "scan_interval"
-CONF_CREATE_NODE_CONTROLS = "create_node_controls"  # toggle for node entities (controls & sensors)
+OPTION_AREAS = "areas"  # mapping of device_id -> area_id
 
-# Predefined nodes configuration file name (looked up under /config/ducobox first)
-NODES_FILENAME = "nodes.json"
+# Known node types
+NODE_TYPE_BOX = "BOX"
+NODE_TYPE_UCHR = "UCHR"
+NODE_TYPE_UCCO2 = "UCCO2"
+NODE_TYPE_VLV = "VLV"
 
-DUCO_OPERATION_MODES = ["AUTO", "MAN1", "MAN2", "MAN3"]
+# Attribute sets by type
+ATTRS_BOX_CATEGORIES = ("energyinfo", "energyfan")
+ATTRS_UCHR = ("temp", "rh", "snsr", "state")
+ATTRS_UCCO2 = ("temp", "co2", "snsr")
+ATTRS_VLV = ("trgt", "actl", "snsr")
 
-BOX_INFO_ENDPOINT = "/boxinfoget"
-NODE_INFO_ENDPOINT = "/nodeinfoget?node={node}"
-SET_NODE_MODE_ENDPOINT = "/nodesetoperstate?node={node}&mode={mode}"
