@@ -2,6 +2,7 @@
   "name": "DucoBox",
   "country": "NL",
   "homeassistant": "2024.8.0",
+  "domains": ["sensor"],
   "render_readme": true,
   "persistent_directory": "custom_components/ducobox/.storage"
 }
