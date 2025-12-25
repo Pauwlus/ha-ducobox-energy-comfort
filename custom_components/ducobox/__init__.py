@@ -18,11 +18,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     device_reg = dr.async_get(hass); area_reg = ar.async_get(hass)
     area_map = entry.options.get(OPTION_AREAS, {}) if entry.options else {}
+
     for node in coordinator.nodes:
         node_id = node["node"]
         devtype = node.get("devtype") or "NODE"
         location = node.get("location") or f"Node {node_id}"
-        info = coordinator.data.get(node_id, {}) if hasattr(coordinator, 'data') else {}
+        info = getattr(coordinator, 'data', {}).get(node_id, {})
         base_unique = build_base_unique(str(info.get('devtype') or devtype), info.get('subtype'), node_id, info.get('serial'))
         device_name = f"DucoBox - {node_id}" if devtype.upper()=="BOX" else f"DucoBox node - {location}"
         identifiers = {(DOMAIN, f"device-{base_unique}")}
@@ -30,6 +31,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         area_id = area_map.get(f"{devtype}-{node_id}")
         if area_id and area_reg.async_get_area(area_id):
             device_reg.async_update_device(device.id, area_id=area_id)
+
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
 

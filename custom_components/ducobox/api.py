@@ -1,7 +1,9 @@
 
+from typing import Any, Dict, List
 from yarl import URL
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+import re
 
 class DucoClient:
     def __init__(self, hass: HomeAssistant, host: str) -> None:
@@ -17,22 +19,29 @@ class DucoClient:
         url = self._url("index.html")
         async with self._session.get(url, timeout=10) as resp:
             resp.raise_for_status(); return await resp.text()
-    async def fetch_node_info(self, node: int):
+    async def fetch_box_info(self) -> Dict[str, Any]:
+        url = self._url("boxinfoget")
+        async with self._session.get(url, timeout=10) as resp:
+            resp.raise_for_status()
+            try:
+                return await resp.json(content_type=None)
+            except Exception:
+                text = await resp.text(); return self._parse_kv(text)
+    async def fetch_node_info(self, node: int) -> Dict[str, Any]:
         url = self._url(f"nodeinfoget?node={node}")
         async with self._session.get(url, timeout=10) as resp:
             resp.raise_for_status()
             try: return await resp.json(content_type=None)
             except Exception:
                 text = await resp.text(); return self._parse_kv(text)
-    def _parse_kv(self, text: str):
-        data = {}
+    def _parse_kv(self, text: str) -> Dict[str, Any]:
+        data: Dict[str, Any] = {}
         for line in text.splitlines():
             if '=' in line:
                 k,v = line.split('=',1); data[k.strip()] = v.strip()
         return data
-    async def discover_nodes(self):
-        html = await self.fetch_index(); nodes = []
-        import re
+    async def discover_nodes(self) -> List[Dict[str, Any]]:
+        html = await self.fetch_index(); nodes: List[Dict[str, Any]] = []
         rows = re.findall(r"(?is)<tr[^>]*>(.*?)</tr>", html)
         for row in rows:
             cols = re.findall(r"(?is)<t[dh][^>]*>(.*?)</t[dh]>", row)
