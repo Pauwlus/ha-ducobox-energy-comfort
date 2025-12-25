@@ -10,20 +10,21 @@ _LOGGER = logging.getLogger(__name__)
 async def async_setup_entry(hass, entry, async_add_entities):
     coordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
     entities = []
-    # Ensure we have at least one refresh
+    # Ensure we have initial data
     if not getattr(coordinator, 'data', None):
         try:
             await coordinator.async_refresh()
         except Exception:
             pass
+    # Build entities per discovered node
     for node in getattr(coordinator, 'nodes', []) or []:
         node_id = node.get('node')
         info = (coordinator.data or {}).get(node_id, {})
-        _LOGGER.debug('DucoBox: building entities for node %s devtype=%s', node_id, str(info.get('devtype', 'NODE')))
-        devtype = str(info.get("devtype") or "NODE").upper()
-        subtype = info.get("subtype")
-        serial = info.get("serial")
-        location = infer_location(info)
+        _LOGGER.debug('DucoBox: building entities for node %s devtype=%s', node_id, str(info.get('devtype', node.get('devtype', 'NODE'))))
+        devtype = str(info.get("devtype") or node.get("devtype") or "NODE").upper()
+        subtype = info.get("subtype") or node.get("subtype")
+        serial = info.get("serial") or node.get("serial")
+        location = infer_location(info) if info else (node.get("location") or f"Node {node_id}")
         base_unique = build_base_unique(devtype, subtype, node_id, serial)
         if devtype == NODE_TYPE_BOX:
             created = False
@@ -46,6 +47,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
             for k in attrs_map[devtype]:
                 name = f"{location} {k}"; ent_id = build_entity_id("sensor", base_unique, k)
                 entities.append(DucoBoxSensor(entry, coordinator, node_id, devtype, location, base_unique, k, name, ent_id))
+    # Register enforced entity_id
     ent_reg = er.async_get(hass)
     for ent in entities:
         ent_reg.async_get_or_create(domain="sensor", platform=DOMAIN, unique_id=ent.unique_id, config_entry_id=entry.entry_id, suggested_object_id=ent.entity_id.split(".")[1], entity_id=ent.entity_id)

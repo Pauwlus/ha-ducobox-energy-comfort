@@ -3,7 +3,7 @@ from typing import Any, Dict
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.helpers import area_registry as ar
-from .const import DOMAIN, CONF_HOST, CONF_FRIENDLY_NAME, CONF_SCAN_INTERVAL, DEFAULT_NAME, DEFAULT_SCAN_INTERVAL, OPTION_AREAS
+from .const import DOMAIN, CONF_HOST, CONF_FRIENDLY_NAME, CONF_SCAN_INTERVAL, DEFAULT_NAME, DEFAULT_SCAN_INTERVAL, OPTION_AREAS, NODE_RANGE_START, NODE_RANGE_END
 from .api import DucoClient
 
 class DucoBoxConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -16,7 +16,14 @@ class DucoBoxConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             scan_interval = int(user_input.get(CONF_SCAN_INTERVAL) or DEFAULT_SCAN_INTERVAL)
             client = DucoClient(self.hass, host)
             try:
-                nodes = await client.discover_nodes()
+                # Probe by range to pre-populate node list for area mapping
+                nodes = await client.discover_nodes_by_range(NODE_RANGE_START, NODE_RANGE_END)
+                # Inject BOX via boxinfoget if available
+                try:
+                    box_info = await client.fetch_box_info()
+                    nodes.insert(0, {"node": 0, "devtype": "BOX", "subtype": box_info.get("subtype"), "serial": box_info.get("serial"), "location": box_info.get("location") or "DucoBox"})
+                except Exception:
+                    pass
                 self._host = host; self._name = name; self._scan_interval = scan_interval; self._nodes = nodes
                 return await self.async_step_area_mapping()
             except Exception:

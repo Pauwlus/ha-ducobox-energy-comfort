@@ -15,3 +15,5 @@ ATTRS_BOX_CATEGORIES = ("energyinfo", "energyfan")
 ATTRS_UCHR = ("temp", "rh", "snsr", "state")
 ATTRS_UCCO2 = ("temp", "co2", "snsr")
 ATTRS_VLV = ("trgt", "actl", "snsr")
+NODE_RANGE_START = 1
+NODE_RANGE_END = 100
