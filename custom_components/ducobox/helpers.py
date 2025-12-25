@@ -13,3 +13,12 @@ def build_base_unique(devtype, subtype, node_id, serial):
     if node_id is not None: parts.append(sanitize(str(node_id)))
     if serial: parts.append(sanitize(str(serial)))
     return "_".join([p for p in parts if p])
+
+def infer_location(info):
+    for key in ("location","room","loc","zone_desc","name"):
+        val = info.get(key)
+        if isinstance(val,str) and val.strip():
+            return val.strip()
+    devtype = info.get("devtype") or info.get("type") or "node"
+    nid = info.get("node") or info.get("node_id") or info.get("zone")
+    return f"{devtype} {nid}".strip()

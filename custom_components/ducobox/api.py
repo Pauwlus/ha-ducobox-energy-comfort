@@ -8,6 +8,8 @@ from .const import KNOWN_NODE_TYPES
 
 _LOGGER = logging.getLogger(__name__)
 
+ALIAS_MAP = {"UCRH": "UCHR"}
+
 class DucoClient:
     def __init__(self, hass: HomeAssistant, host: str) -> None:
         self._hass = hass
@@ -28,6 +30,7 @@ class DucoClient:
             except Exception:
                 text = await resp.text(); data = self._parse_kv(text)
         devtype = str(data.get("devtype") or "UNKN").upper()
+        devtype = ALIAS_MAP.get(devtype, devtype)
         data["devtype"] = devtype
         return data
     async def fetch_box_info(self) -> Dict[str, Any]:
@@ -67,7 +70,7 @@ class DucoClient:
                 "node": node,
                 "devtype": devtype,
                 "subtype": info.get("subtype"),
-                "serial": info.get("serial"),
+                "serial": info.get("serial") or info.get("serialnb"),
                 "location": location,
             })
         return nodes

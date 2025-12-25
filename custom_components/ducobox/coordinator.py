@@ -34,7 +34,7 @@ class DucoCoordinator(DataUpdateCoordinator):
                     'node': target_node,
                     'devtype': 'BOX',
                     'subtype': box_info.get('subtype'),
-                    'serial': box_info.get('serial'),
+                    'serial': box_info.get('serial') or box_info.get('serialnb'),
                     'location': box_info.get('General', {}).get('InstallerState') or box_info.get('location') or 'DucoBox'
                 })
         except Exception:
@@ -55,12 +55,12 @@ class DucoCoordinator(DataUpdateCoordinator):
                         pass
                 else:
                     info = await self._client.fetch_node_info(node_id)
-                    if "serial" not in info and "serialnb" in info:
-                        info["serial"] = info.get("serialnb")
+                    if str(info.get('devtype','UNKN')).upper() not in {'BOX','UCHR','UCRH','UCCO2','VLV'}:
+                        continue
                     info.setdefault("node", node_id)
                     info.setdefault("devtype", n.get("devtype"))
                     info.setdefault("subtype", n.get("subtype"))
-                    info.setdefault("serial", info.get("serial") or n.get("serial"))
+                    info.setdefault("serial", info.get("serial") or info.get("serialnb") or n.get("serial"))
                     info.setdefault("location", info.get("location") or n.get("location"))
                     self.data[node_id] = info
             return self.data
