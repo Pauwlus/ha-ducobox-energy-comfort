@@ -11,14 +11,6 @@ NODE_TYPE_BOX = "BOX"
 NODE_TYPE_UCHR = "UCHR"
 NODE_TYPE_UCCO2 = "UCCO2"
 NODE_TYPE_VLV = "VLV"
-BOX_REQUIRED_CATEGORIES = ("EnergyInfo", "EnergyFan")
-BOX_DEFAULT_ENERGYINFO_KEYS = (
-    "TempODA","TempSUP","TempETA","TempEHA","BypassStatus","BypassRequestedTemp",
-    "FrostProtState","FrostProtPressReduct","FrostProtHeaterLevel","FilterRemainingTime"
-)
-BOX_DEFAULT_ENERGYFAN_KEYS = (
-    "SupplyFanSpeed","SupplyFanPressTarget","SupplyFanPressActual","SupplyFanPwmLevel","SupplyFanPwmPercentage",
-    "ExhaustFanSpeed","ExhaustFanPressTarget","ExhaustFanPressActual","ExhaustFanPwmLevel","ExhaustFanPwmPercentage"
-)
+KNOWN_NODE_TYPES = {NODE_TYPE_BOX, NODE_TYPE_UCHR, NODE_TYPE_UCCO2, NODE_TYPE_VLV}
 NODE_RANGE_START = 1
 NODE_RANGE_END = 100
