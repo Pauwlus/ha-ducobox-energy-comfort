@@ -1,1 +1,0 @@
-Submit branding to home-assistant/brands under custom_integrations/ducobox. Manufacturer: Duco.
