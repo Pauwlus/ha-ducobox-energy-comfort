@@ -17,13 +17,6 @@ class DucoBoxConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             client = DucoClient(self.hass, host)
             try:
                 nodes = await client.discover_nodes_by_range(NODE_RANGE_START, NODE_RANGE_END)
-                # Map boxinfoget to BOX node (prefer discovered BOX else node 1)
-                try:
-                    box_info = await client.fetch_box_info()
-                    box_node = next((n['node'] for n in nodes if str(n.get('devtype')).upper()=='BOX'), 1)
-                    nodes.insert(0, {"node": box_node, "devtype": "BOX", "subtype": box_info.get("subtype"), "serial": box_info.get("serial"), "location": box_info.get("General", {}).get("InstallerState") or box_info.get("location") or "DucoBox"})
-                except Exception:
-                    pass
                 self._host = host; self._name = name; self._scan_interval = scan_interval; self._nodes = nodes
                 return await self.async_step_area_mapping()
             except Exception:

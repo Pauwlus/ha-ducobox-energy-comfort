@@ -1,5 +1,4 @@
 
-import logging
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr, area_registry as ar
@@ -8,10 +7,7 @@ from .api import DucoClient
 from .coordinator import DucoCoordinator
 from .helpers import build_base_unique
 
-_LOGGER = logging.getLogger(__name__)
-
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    _LOGGER.warning("DucoBox: async_setup_entry() CALLED for %s", entry.title)
     host = entry.data[CONF_HOST]
     scan_interval = entry.data.get(CONF_SCAN_INTERVAL) or 30
     client = DucoClient(hass, host)
@@ -36,7 +32,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         if area_id and area_reg.async_get_area(area_id):
             device_reg.async_update_device(device.id, area_id=area_id)
 
-    _LOGGER.warning("DucoBox: setup complete. %d node(s) discovered. Platforms forwarded: %s", len(coordinator.nodes), PLATFORMS)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
 

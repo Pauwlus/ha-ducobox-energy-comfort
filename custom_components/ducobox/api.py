@@ -20,20 +20,21 @@ class DucoClient:
     async def fetch_box_info(self) -> Dict[str, Any]:
         url = self._url("boxinfoget")
         async with self._session.get(url, timeout=10) as resp:
+            _LOGG
             _LOGGER.warning("DucoBox API: GET %s -> %s", str(url), resp.status)
             resp.raise_for_status()
             try:
                 data = await resp.json(content_type=None)
             except Exception:
                 text = await resp.text(); data = self._parse_kv(text)
-        if "serial" not in data and "serialnb" in data:
+        if "serial" not in data and isinstance(data.get("General"), dict) and "serialnb" in data:
             data["serial"] = data.get("serialnb")
-        # flatten required categories for convenience later
         return data
     async def fetch_node_info(self, node: int) -> Dict[str, Any]:
-        url = self._url(f"nodeinfoget?node={node}")
-        async with self._session.get(url, timeout=10) as resp:
-            _LOGGER.warning("DucoBox API: GET %s -> %s", str(url), resp.status)
+        url = self._url("nodeinfoget")
+        # IMPORTANT: pass query via params so '?' is not percent-encoded
+        async with self._session.get(url, params={"node": node}, timeout=10) as resp:
+            _LOGGER.warning("DucoBox API: GET %s?node=%s -> %s", str(url), node, resp.status)
             resp.raise_for_status()
             try:
                 data = await resp.json(content_type=None)
