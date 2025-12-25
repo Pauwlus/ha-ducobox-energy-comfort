@@ -11,9 +11,8 @@ NODE_TYPE_BOX = "BOX"
 NODE_TYPE_UCHR = "UCHR"
 NODE_TYPE_UCCO2 = "UCCO2"
 NODE_TYPE_VLV = "VLV"
-ATTRS_BOX_CATEGORIES = ("energyinfo", "energyfan")
-ATTRS_UCHR = ("temp", "rh", "snsr", "state")
-ATTRS_UCCO2 = ("temp", "co2", "snsr")
-ATTRS_VLV = ("trgt", "actl", "snsr")
+# BOX categories per sample: EnergyInfo & EnergyFan are required; others optional
+BOX_REQUIRED_CATEGORIES = ("EnergyInfo", "EnergyFan")
+BOX_OPTIONAL_CATEGORIES = ("General", "EnergyCalib", "WeatherStation")
 NODE_RANGE_START = 1
 NODE_RANGE_END = 100

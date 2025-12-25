@@ -16,12 +16,12 @@ class DucoBoxConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             scan_interval = int(user_input.get(CONF_SCAN_INTERVAL) or DEFAULT_SCAN_INTERVAL)
             client = DucoClient(self.hass, host)
             try:
-                # Probe by range to pre-populate node list for area mapping
                 nodes = await client.discover_nodes_by_range(NODE_RANGE_START, NODE_RANGE_END)
-                # Inject BOX via boxinfoget if available
+                # Map boxinfoget to BOX node (prefer discovered BOX else node 1)
                 try:
                     box_info = await client.fetch_box_info()
-                    nodes.insert(0, {"node": 0, "devtype": "BOX", "subtype": box_info.get("subtype"), "serial": box_info.get("serial"), "location": box_info.get("location") or "DucoBox"})
+                    box_node = next((n['node'] for n in nodes if str(n.get('devtype')).upper()=='BOX'), 1)
+                    nodes.insert(0, {"node": box_node, "devtype": "BOX", "subtype": box_info.get("subtype"), "serial": box_info.get("serial"), "location": box_info.get("General", {}).get("InstallerState") or box_info.get("location") or "DucoBox"})
                 except Exception:
                     pass
                 self._host = host; self._name = name; self._scan_interval = scan_interval; self._nodes = nodes

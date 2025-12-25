@@ -14,53 +14,64 @@ class DucoCoordinator(DataUpdateCoordinator):
         self._client = client
         self.nodes = []
         self.data = {}
+        self._box_node = None
 
     async def async_config_entry_first_refresh(self) -> None:
-        # Discover nodes by probing range only
         LOGGER.warning('DucoBox: coordinator first refresh START — probing range %s..%s', NODE_RANGE_START, NODE_RANGE_END)
-        # Always fetch BOX info
-        try:
-            box_info = await self._client.fetch_box_info()
-            self.data[0] = {**box_info, "node": 0, "devtype": "BOX", "location": box_info.get("location") or "DucoBox"}
-            self.nodes.append({
-                "node": 0,
-                "devtype": "BOX",
-                "subtype": box_info.get("subtype"),
-                "serial": box_info.get("serial"),
-                "location": box_info.get("location") or "DucoBox",
-            })
-        except Exception as ex:
-            LOGGER.debug("DucoBox: /boxinfoget not available (%s). Continuing without BOX injection.", ex)
-        # Probe nodes 1..100 (configurable via const)
+        # Probe nodes by range; includes BOX at node 1 in your sample
         discovered = await self._client.discover_nodes_by_range(NODE_RANGE_START, NODE_RANGE_END)
         self.nodes.extend(discovered)
+        # Identify BOX node (prefer devtype BOX among discovered)
+        for n in self.nodes:
+            if str(n.get('devtype')).upper() == 'BOX':
+                self._box_node = n.get('node')
+                break
+        # Fetch boxinfoget and map to BOX node (node 1 in your sample)
+        try:
+            box_info = await self._client.fetch_box_info()
+            target_node = self._box_node if self._box_node is not None else 1
+            box_info.setdefault('node', target_node)
+            box_info.setdefault('devtype', 'BOX')
+            self.data[target_node] = box_info
+            # Ensure a BOX node exists in nodes list
+            if self._box_node is None:
+                self.nodes.insert(0, {
+                    'node': target_node,
+                    'devtype': 'BOX',
+                    'subtype': box_info.get('subtype'),
+                    'serial': box_info.get('serial'),
+                    'location': box_info.get('General', {}).get('InstallerState') or box_info.get('location') or 'DucoBox'
+                })
+            LOGGER.warning('DucoBox: BOX mapped to node %s via /boxinfoget', target_node)
+        except Exception as ex:
+            LOGGER.warning("DucoBox: /boxinfoget not available (%s).", ex)
         LOGGER.warning('DucoBox: coordinator discovered %d node(s): %s', len(self.nodes), self.nodes)
         await super().async_config_entry_first_refresh()
 
     async def _async_update_data(self):
         try:
-            # Refresh per-node info
             for n in self.nodes:
                 node_id = n["node"]
-                if node_id == 0:
-                    # Refresh BOX
+                if str(n.get('devtype')).upper() == 'BOX':
                     try:
                         info = await self._client.fetch_box_info()
+                        info.setdefault('node', node_id)
+                        info.setdefault('devtype', 'BOX')
+                        self.data[node_id] = info
                     except Exception:
-                        info = self.data.get(0, {})
-                    info.setdefault("node", 0)
-                    info.setdefault("devtype", "BOX")
-                    info.setdefault("location", info.get("location") or n.get("location") or "DucoBox")
-                    self.data[0] = info
+                        pass
                 else:
                     info = await self._client.fetch_node_info(node_id)
-                    devtype = str(info.get("devtype", n.get("devtype") or "UNKN")).upper()
+                    if "serial" not in info and "serialnb" in info:
+                        info["serial"] = info.get("serialnb")
                     info.setdefault("node", node_id)
-                    info.setdefault("devtype", devtype)
+                    info.setdefault("devtype", n.get("devtype"))
                     info.setdefault("subtype", n.get("subtype"))
                     info.setdefault("serial", info.get("serial") or n.get("serial"))
                     info.setdefault("location", info.get("location") or n.get("location"))
                     self.data[node_id] = info
+            LOGGER.warning('DucoBox: coordinator update tick; nodes=%s, data_keys=%s', [n.get('node') for n in self.nodes], list(self.data.keys()))
             return self.data
         except Exception as err:
+            LOGGER.error('DucoBox: update failed: %s', err)
             raise UpdateFailed(str(err))

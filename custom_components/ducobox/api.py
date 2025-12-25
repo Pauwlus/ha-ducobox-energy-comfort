@@ -20,18 +20,28 @@ class DucoClient:
     async def fetch_box_info(self) -> Dict[str, Any]:
         url = self._url("boxinfoget")
         async with self._session.get(url, timeout=10) as resp:
+            _LOGGER.warning("DucoBox API: GET %s -> %s", str(url), resp.status)
             resp.raise_for_status()
             try:
-                return await resp.json(content_type=None)
+                data = await resp.json(content_type=None)
             except Exception:
-                text = await resp.text(); return self._parse_kv(text)
+                text = await resp.text(); data = self._parse_kv(text)
+        if "serial" not in data and "serialnb" in data:
+            data["serial"] = data.get("serialnb")
+        # flatten required categories for convenience later
+        return data
     async def fetch_node_info(self, node: int) -> Dict[str, Any]:
         url = self._url(f"nodeinfoget?node={node}")
         async with self._session.get(url, timeout=10) as resp:
+            _LOGGER.warning("DucoBox API: GET %s -> %s", str(url), resp.status)
             resp.raise_for_status()
-            try: return await resp.json(content_type=None)
+            try:
+                data = await resp.json(content_type=None)
             except Exception:
-                text = await resp.text(); return self._parse_kv(text)
+                text = await resp.text(); data = self._parse_kv(text)
+        if "serial" not in data and "serialnb" in data:
+            data["serial"] = data.get("serialnb")
+        return data
     def _parse_kv(self, text: str) -> Dict[str, Any]:
         data: Dict[str, Any] = {}
         for line in text.splitlines():
@@ -44,7 +54,7 @@ class DucoClient:
             try:
                 info = await self.fetch_node_info(node)
             except Exception as ex:
-                _LOGGER.debug("DucoBox: node %s fetch failed: %s", node, ex)
+                _LOGGER.warning("DucoBox: node %s fetch failed: %s", node, ex)
                 continue
             devtype = str(info.get("devtype", "UNKN")).upper()
             if devtype == "UNKN":
