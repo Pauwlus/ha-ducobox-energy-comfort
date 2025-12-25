@@ -32,7 +32,7 @@ A custom Home Assistant integration for **Duco Box** ventilation systems, instal
 
 ---
 
-## 📦 Installation (HACS)
+## 📦 Installation (HACS) 
 
 1. In HACS, go to **Integrations** → **⋮** → **Custom repositories**.
 2. Add this repository URL and select category **Integration**.
