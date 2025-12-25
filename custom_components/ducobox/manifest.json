@@ -1,7 +1,7 @@
 {
   "domain": "ducobox",
   "name": "DucoBox",
-  "version": "0.1.2",
+  "version": "0.1.4",
   "documentation": "https://github.com/Pauwlus/ha-ducobox-energy-comfort",
   "issue_tracker": "https://github.com/Pauwlus/ha-ducobox-energy-comfort/issues",
   "codeowners": [

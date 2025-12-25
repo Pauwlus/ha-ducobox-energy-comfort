@@ -1,14 +1,25 @@
 
+import logging
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.helpers import entity_registry as er
 from .const import DOMAIN, NODE_TYPE_BOX, NODE_TYPE_UCHR, NODE_TYPE_UCCO2, NODE_TYPE_VLV, ATTRS_BOX_CATEGORIES, ATTRS_UCHR, ATTRS_UCCO2, ATTRS_VLV
 from .helpers import build_base_unique, build_entity_id, sanitize, infer_location
 
+_LOGGER = logging.getLogger(__name__)
+
 async def async_setup_entry(hass, entry, async_add_entities):
     coordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
     entities = []
-    for node_id, info in (coordinator.data or {}).items():
-        hass.logger.debug('DucoBox: building entities for node %s devtype=%s', node_id, str(info.get('devtype', 'NODE')))
+    # Ensure we have at least one refresh
+    if not getattr(coordinator, 'data', None):
+        try:
+            await coordinator.async_refresh()
+        except Exception:
+            pass
+    for node in getattr(coordinator, 'nodes', []) or []:
+        node_id = node.get('node')
+        info = (coordinator.data or {}).get(node_id, {})
+        _LOGGER.debug('DucoBox: building entities for node %s devtype=%s', node_id, str(info.get('devtype', 'NODE')))
         devtype = str(info.get("devtype") or "NODE").upper()
         subtype = info.get("subtype")
         serial = info.get("serial")
