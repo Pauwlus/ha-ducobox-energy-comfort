@@ -62,8 +62,8 @@ class DucoBoxSensor(SensorEntity):
         self._node_id = node_id; self._devtype = devtype; self._location = location
         self._base_unique = base_unique; self._item = item
         self._attr_name = name
-        self._attr_unique_id = f"{base_unique}"
-        self._attr_suggested_object_id = f"{base_unique}"
+        self._attr_unique_id = f"{base_unique}_{sanitize(item)}"
+        self._attr_suggested_object_id = sanitize(item)
         self._attr_device_info = {"identifiers": {(DOMAIN, f"device-{base_unique}")}, "manufacturer": "DUCO", "model": devtype, "name": self._device_name(devtype, location, node_id)}
 
     @property
