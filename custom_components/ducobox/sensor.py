@@ -62,16 +62,22 @@ class DucoBoxSensor(SensorEntity):
         self._node_id = node_id; self._devtype = devtype; self._location = location
         self._base_unique = base_unique; self._item = item
         self._attr_name = name
-        self._attr_unique_id = f"{base_unique}_{sanitize(item)}"
-        self._attr_suggested_object_id = sanitize(item)
+        self._attr_unique_id = f"{base_unique}"
+        self._attr_suggested_object_id = f"{base_unique}"
         self._attr_device_info = {"identifiers": {(DOMAIN, f"device-{base_unique}")}, "manufacturer": "DUCO", "model": devtype, "name": self._device_name(devtype, location, node_id)}
 
     @property
     def native_unit_of_measurement(self):
         key = str(self._item).lower()
         if key in ("temp", "temperature"): return "°C"
-        if key in ("rh", "humidity"): return "%"
         if key in ("co2",): return "ppm"
+        if key in (
+            "rh", "humidity",           # already present
+            "trgt", "target",           # target setpoint (percentage)
+            "actl", "actual",           # actual output/position (percentage)
+            "snsr", "sensor", "actl_snsr"  # sensor reading (percentage)
+        ):
+            return "%"
         return None
 
     @property
